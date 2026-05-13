@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina | Premium Photomosaic Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="logo">
+                <span class="accent">Lumina</span> Mosaic
+            </div>
+            <nav>
+                <div class="status" id="engineStatus">Engine: Idle</div>
+            </nav>
+        </header>
+
+        <main>
+            <section class="controls">
+                <div class="card glass">
+                    <h3>1. Target Image</h3>
+                    <div class="drop-zone" id="targetDrop">
+                        <p>Drag target image here</p>
+                        <input type="file" id="targetInput" accept="image/*" hidden>
+                    </div>
+                </div>
+
+                <div class="card glass">
+                    <h3>2. Tile Library</h3>
+                    <div class="drop-zone" id="tileDrop">
+                        <p>Drag folder of images</p>
+                        <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
+                    </div>
+                    <div id="tileStats" class="stats-text">0 tiles loaded</div>
+                </div>
+
+                <div class="card glass settings">
+                    <h3>3. Engine Specs</h3>
+                    <div class="setting-group">
+                        <label>Grid Resolution</label>
+                        <input type="range" id="gridRes" min="20" max="200" value="64">
+                        <span id="gridResVal">64x64</span>
+                    </div>
+                    <div class="setting-group">
+                        <label>Color Logic</label>
+                        <select id="colorMode">
+                            <option value="lab">CIELAB (Perceptual)</option>
+                            <option value="rgb">RGB (Fast)</option>
+                        </select>
+                    </div>
+                    <button id="generateBtn" class="btn-primary" disabled>Generate Mosaic</button>
+                </div>
+            </section>
+
+            <section class="viewport">
+                <div class="canvas-container glass">
+                    <canvas id="outputCanvas"></canvas>
+                    <div id="loader" class="loader-overlay hidden">
+                        <div class="spinner"></div>
+                        <p id="loaderText">Analyzing tiles...</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Lumina Engine | High-Fidelity Photomosaics</p>
+        </footer>
+    </div>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

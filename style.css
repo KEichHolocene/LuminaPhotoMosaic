@@ -1,0 +1,224 @@
+:root {
+    --bg-color: #050508;
+    --card-bg: rgba(20, 20, 30, 0.6);
+    --accent: #4f46e5;
+    --accent-glow: rgba(79, 70, 229, 0.4);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --radius: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 50%);
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 20px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px 20px 10px;
+}
+
+.logo {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.logo .accent {
+    color: var(--accent);
+}
+
+.status {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: var(--card-bg);
+    padding: 5px 15px;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+}
+
+main {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 20px;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.glass {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px;
+}
+
+.card h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.drop-zone {
+    border: 2px dashed var(--glass-border);
+    border-radius: var(--radius);
+    padding: 30px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.drop-zone:hover {
+    border-color: var(--accent);
+    background: rgba(79, 70, 229, 0.05);
+}
+
+.drop-zone p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.stats-text {
+    font-size: 0.75rem;
+    margin-top: 10px;
+    color: var(--accent);
+}
+
+.setting-group {
+    margin-bottom: 15px;
+}
+
+.setting-group label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+}
+
+select {
+    width: 100%;
+    background: #111;
+    color: white;
+    border: 1px solid var(--glass-border);
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.btn-primary {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+    box-shadow: 0 4px 15px var(--accent-glow);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+}
+
+.btn-primary:disabled {
+    background: #333;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.viewport {
+    display: flex;
+    flex-direction: column;
+}
+
+.canvas-container {
+    flex-grow: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#outputCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.loader-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 5, 8, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+footer {
+    padding-top: 20px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}

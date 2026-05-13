@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#020204">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Lumina | Sovereign Mobile Suite</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkx1bWluYSBTb3ZlcmVpZ24iLAogICJzaG9ydF9uYW1lIjogIkx1bWluYSIsCiAgInN0YXJ0X3VybCI6ICIuIiwKICAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwKICAiYmFja2dyb3VuZF9jb2xvciI6ICIjMDIwMjA0IiwKICAidGhlbWVfY29sb3IiOiAiIzAyMDIwNCIsCiAgImljb25zIjogWwogICAgewogICAgICAic3JjIjogImh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzI1ODkvMjU4OTI0NS5wbmciLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIKICAgIH0KICBdCn0=">
+
+    <style>
+        :root {
+            --bg: #020204;
+            --card: rgba(15, 15, 25, 0.8);
+            --accent: AccentColor;
+            @supports not (color: AccentColor) { --accent: #7c3aed; }
+            --accent-glow: color-mix(in srgb, var(--accent), transparent 70%);
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --radius: 20px;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: var(--bg); color: var(--text);
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex; flex-direction: column; min-height: 100vh;
+            overflow-x: hidden; user-select: none;
+            overscroll-behavior-y: contain;
+        }
+
+        #previewPane {
+            position: sticky; top: 0; width: 100%; height: 45vh;
+            background: #000; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; z-index: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #outputCanvas { 
+            max-width: 95%; max-height: 95%; 
+            image-rendering: crisp-edges; image-rendering: pixelated;
+            box-shadow: 0 0 50px var(--accent-glow);
+        }
+
+        .nova-container { 
+            position: absolute; inset: 0; 
+            display: none; align-items: center; justify-content: center; z-index: 600;
+            pointer-events: none;
+        }
+        .nova-inner { position: relative; width: 40px; height: 40px; }
+        .nova-ring { position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: 50%; animation: supernova 1.5s ease-out infinite; box-shadow: 0 0 10px var(--accent); }
+        .star-core { 
+            position: absolute; width: 8px; height: 8px; background: #fff; border-radius: 50%; 
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            animation: collapse 1.5s ease-in-out infinite; box-shadow: 0 0 15px #fff; 
+        }
+        @keyframes supernova { 0% { transform: scale(0.1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        @keyframes collapse { 0%, 100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 50% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; } }
+
+        #content { flex: 1; padding: 25px; display: flex; flex-direction: column; gap: 25px; padding-bottom: 120px; z-index: 100; position: relative; max-width: 600px; margin: 0 auto; width: 100%; }
+        .section-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: var(--text-dim); letter-spacing: 2px; margin-bottom: 10px; opacity: 0.5; }
+        
+        .slot { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 25px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+        .slot:hover, .slot.drag-over { border-color: var(--accent); background: rgba(255,255,255,0.03); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+
+        #libraryVault {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 12px;
+            max-height: 350px; overflow-y: auto; padding: 15px;
+            background: var(--card); border-radius: var(--radius); border: 1px solid var(--border);
+        }
+        .vault-item { width: 100%; aspect-ratio: 1; border-radius: 12px; object-fit: cover; cursor: grab; transition: all 0.2s; touch-action: none; }
+        .vault-item:hover { transform: scale(1.08) rotate(2deg); box-shadow: 0 5px 15px rgba(0,0,0,0.4); z-index: 10; }
+
+        .controls-card { background: var(--card); border-radius: var(--radius); padding: 25px; border: 1px solid var(--border); }
+        input[type="range"] { width: 100%; height: 4px; accent-color: var(--accent); margin: 20px 0; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; appearance: none; }
+        input[type="range"]::-webkit-slider-thumb { appearance: none; width: 22px; height: 22px; background: #fff; border-radius: 50%; box-shadow: 0 0 10px var(--accent); }
+
+        #bottomBar {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 90px;
+            background: rgba(2, 2, 4, 0.85); backdrop-filter: blur(30px);
+            border-top: 1px solid var(--border); padding: 0 20px;
+            display: flex; align-items: center; justify-content: space-between; z-index: 800;
+        }
+        .export-group { display: flex; gap: 8px; }
+        .download-btn {
+            background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); padding: 10px 15px;
+            border-radius: 40px; font-weight: 700; font-size: 0.7rem; cursor: pointer; transition: all 0.2s;
+        }
+        .download-btn:not(:disabled):hover { background: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+        .download-btn:disabled { opacity: 0.3; cursor: default; }
+        .download-btn.primary { background: var(--accent); border-color: var(--accent); }
+
+        .branding { display: flex; flex-direction: column; }
+        .branding h1 { font-size: 0.85rem; font-weight: 900; letter-spacing: 1px; color: #fff; }
+        .branding p { font-size: 0.55rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+        .privacy-pill { background: rgba(34, 197, 94, 0.1); color: #4ade80; padding: 3px 8px; border-radius: 20px; font-size: 0.5rem; font-weight: 700; border: 1px solid rgba(34, 197, 94, 0.2); margin-top: 4px; align-self: flex-start; }
+    </style>
+</head>
+<body>
+    <div id="previewPane">
+        <canvas id="outputCanvas"></canvas>
+        <div class="nova-container" id="novaLoader">
+            <div class="nova-inner">
+                <div class="nova-ring"></div>
+                <div class="star-core"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="content">
+        <section>
+            <div class="section-label">01 Subject Material</div>
+            <div class="slot" id="targetSlot" onclick="document.getElementById('targetInput').click()"
+                 ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; this.classList.add('drag-over')"
+                 ondragenter="event.preventDefault(); this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleTargetDrop(event)">
+                <p id="targetName" style="font-size: 0.8rem; opacity: 0.6; font-weight: 500;">Drop subject image here</p>
+                <input type="file" id="targetInput" accept="image/*" hidden>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-label">02 Curation Palette</div>
+            <div id="priorityPalette" class="slot" style="padding: 10px; min-height: 100px; display: flex; gap: 12px; overflow-x: auto; align-items: center;"
+                 ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; this.classList.add('drag-over')"
+                 ondragenter="event.preventDefault(); this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handlePaletteDrop(event)">
+                <div style="width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.2; font-size: 0.7rem; font-weight: 500;">Drag tiles here</div>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-label">03 Tile Archive</div>
+            <div class="slot" style="padding: 15px; margin-bottom: 12px;" onclick="document.getElementById('tileInput').click()">
+                <p id="vaultStatus" style="font-size: 0.7rem; font-weight: 600;">+ Import Collection</p>
+                <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
+            </div>
+            <div id="libraryVault"></div>
+        </section>
+
+        <section class="controls-card">
+            <div class="section-label">Grid Density</div>
+            <input type="range" id="gridRes" min="20" max="150" value="40">
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 700; opacity: 0.4;">
+                <span id="gridLabel">40x40</span>
+                <span id="tileCount">No Library</span>
+            </div>
+        </section>
+    </div>
+
+    <div id="bottomBar">
+        <div class="branding">
+            <h1>LUMINA</h1>
+            <p>Mobile Suite</p>
+            <div class="privacy-pill">OFFLINE ENGINE</div>
+        </div>
+        <div class="export-group">
+            <button class="download-btn" id="dl4K" disabled>4K</button>
+            <button class="download-btn primary" id="dl8K" disabled>8K MASTER</button>
+        </div>
+    </div>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            const swCode = `const CACHE_NAME = 'lumina-v1'; self.addEventListener('fetch', (event) => { event.respondWith(caches.match(event.request).then((resp) => resp || fetch(event.request))); });`;
+            const blob = new Blob([swCode], {type: 'text/javascript'});
+            navigator.serviceWorker.register(URL.createObjectURL(blob));
+        }
+    </script>
+
+    <script id="workerScript" type="text/javascript-worker">
+        class KDTreeWorker {
+            constructor(points, dimensions) { this.dimensions = dimensions; this.root = this.buildTree(points, 0); }
+            buildTree(points, depth) {
+                if (points.length === 0) return null;
+                const axis = depth % this.dimensions;
+                points.sort((a, b) => a.descriptor[axis] - b.descriptor[axis]);
+                const median = Math.floor(points.length / 2);
+                return { point: points[median], left: this.buildTree(points.slice(0, median), depth + 1), right: this.buildTree(points.slice(median + 1), depth + 1) };
+            }
+            findNearest(target, k = 40) {
+                let candidates = [];
+                const search = (node, depth) => {
+                    if (!node) return;
+                    const rawDist = this.getDist(target, node.point.descriptor);
+                    const usagePenalty = (node.point.usage || 0) * 10000.0;
+                    const dist = rawDist + usagePenalty;
+                    candidates.push({ point: node.point, dist });
+                    candidates.sort((a, b) => a.dist - b.dist);
+                    if (candidates.length > k) candidates.pop();
+                    const axis = depth % this.dimensions;
+                    const diff = target[axis] - node.point.descriptor[axis];
+                    const near = diff < 0 ? node.left : node.right;
+                    const far = diff < 0 ? node.right : node.left;
+                    search(near, depth + 1);
+                    if (Math.abs(diff) < (candidates[candidates.length-1]?.dist || Infinity)) search(far, depth + 1);
+                };
+                search(this.root, 0);
+                const bestPoints = candidates.map(c => c.point);
+                if (bestPoints[0]) bestPoints[0].usage = (bestPoints[0].usage || 0) + 1;
+                return bestPoints.map(p => p.index);
+            }
+            getDist(a, b) {
+                let sum = 0;
+                for (let i = 0; i < 3; i++) { sum += Math.pow((a[i] - b[i]) * ((i===0)?4:3), 2); }
+                return Math.sqrt(sum);
+            }
+        }
+        let tree = null;
+        self.onmessage = function(e) {
+            const { type, data, sessionId, resetUsage } = e.data;
+            if (type === 'INIT') { tree = new KDTreeWorker(data.points, data.dims); self.postMessage({ type: 'READY' }); }
+            else if (type === 'SEARCH_ROW') {
+                if (resetUsage && tree) {
+                    const reset = (node) => { if (!node) return; node.point.usage = 0; reset(node.left); reset(node.right); };
+                    reset(tree.root);
+                }
+                const results = data.row.map(desc => tree.findNearest(desc, 40));
+                self.postMessage({ type: 'ROW_RESULTS', results, y: data.y, sessionId });
+            }
+        };
+    </script>
+
+    <script>
+        const ColorUtils = {
+            rgbToLab(r, g, b) {
+                r /= 255; g /= 255; b /= 255;
+                r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+                g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+                b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+                let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
+                let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
+                let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
+                x /= 95.047; y /= 100.000; z /= 108.883;
+                x = x > 0.008856 ? Math.pow(x, 1/3) : (7.787 * x) + (16 / 116);
+                y = y > 0.008856 ? Math.pow(y, 1/3) : (7.787 * y) + (16 / 116);
+                z = z > 0.008856 ? Math.pow(z, 1/3) : (7.787 * z) + (16 / 116);
+                return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+            }
+        };
+
+        let tiles = []; let targetImg = null; let worker = null;
+        let globallyUsed = new Set(); let currentSessionId = 0;
+        let debounceTimer = null; let activeGridData = null;
+        const seenHashes = new Set();
+
+        const gridRes = document.getElementById('gridRes');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const ctx = outputCanvas.getContext('2d');
+        const loader = document.getElementById('novaLoader');
+
+        async function handleTargetDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const index = e.dataTransfer.getData("tileIndex");
+            if (index !== "") {
+                targetImg = await loadImage(tiles[index].img.toDataURL());
+                document.getElementById('targetName').innerText = "Subject: Tile #" + index;
+                autoTrigger();
+            } else if (e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                targetImg = await loadImage(URL.createObjectURL(file));
+                document.getElementById('targetName').innerText = file.name;
+                autoTrigger();
+            }
+        }
+
+        function handlePaletteDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const index = e.dataTransfer.getData("tileIndex");
+            if (index === "") return;
+            if (this.innerText.includes("Drag")) this.innerHTML = "";
+            const img = new Image(); img.src = tiles[index].img.toDataURL();
+            img.style.width = "40px"; img.style.height = "40px"; img.style.borderRadius = "8px"; img.style.objectFit = "cover";
+            this.appendChild(img);
+            autoTrigger();
+        }
+
+        tileInput.onchange = async (e) => {
+            currentSessionId++; 
+            const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+            loader.style.display = "flex";
+            const dCanvas = document.createElement('canvas'); dCanvas.width = 10; dCanvas.height = 10;
+            const dCtx = dCanvas.getContext('2d');
+            const getDHash = (data) => { let h = ""; for(let i=0;i<64;i++) h+=(data[i*4]>data[(i+1)*4])?"1":"0"; return h; };
+
+            for (let i = 0; i < files.length; i++) {
+                try {
+                    const raw = await createImageBitmap(files[i]);
+                    const min = Math.min(raw.width, raw.height);
+                    const bitmap = await createImageBitmap(raw, (raw.width-min)/2, (raw.height-min)/2, min, min, { resizeWidth: 64, resizeHeight: 64 });
+                    raw.close();
+                    dCtx.drawImage(bitmap, 0, 0, 10, 10);
+                    const data = dCtx.getImageData(0,0,10,10).data;
+                    const hash = getDHash(data);
+                    if (!seenHashes.has(hash)) {
+                        seenHashes.add(hash);
+                        const tc = document.createElement('canvas'); tc.width = 64; tc.height = 64;
+                        tc.getContext('2d').drawImage(bitmap, 0, 0);
+                        tiles.push({ img: tc, descriptor: [...ColorUtils.rgbToLab(...avgColor(data)), 0,0,0,0], index: tiles.length });
+                        if (tiles.length <= 100) {
+                            const vItem = document.createElement('img'); vItem.src = tc.toDataURL();
+                            vItem.className = "vault-item"; vItem.draggable = true;
+                            vItem.ondragstart = (ev) => {
+                                ev.dataTransfer.setData("tileIndex", tiles.length-1);
+                                ev.dataTransfer.effectAllowed = "copy";
+                            };
+                            document.getElementById('libraryVault').appendChild(vItem);
+                        }
+                    }
+                    bitmap.close();
+                } catch(err) {}
+                if (i % 10 === 0) {
+                    document.getElementById('vaultStatus').innerText = `Indexing Collection: ${Math.round((i/files.length)*100)}%`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+            document.getElementById('vaultStatus').innerText = "+ Expand Archive";
+            document.getElementById('tileCount').innerText = `${tiles.length} Units Pooled`;
+            initWorker(); autoTrigger();
+        };
+
+        targetInput.onchange = async (e) => {
+            const file = e.target.files[0]; targetImg = await loadImage(URL.createObjectURL(file));
+            document.getElementById('targetName').innerText = file.name;
+            autoTrigger();
+        };
+
+        gridRes.oninput = () => {
+            const ratio = targetImg ? (targetImg.height/targetImg.width) : 1;
+            document.getElementById('gridLabel').innerText = `${gridRes.value}x${Math.round(gridRes.value * ratio)}`;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(autoTrigger, 150);
+        };
+
+        async function autoTrigger() {
+            if (!targetImg || tiles.length === 0 || !worker) return;
+            const sessionId = ++currentSessionId;
+            globallyUsed.clear(); 
+            loader.style.display = "flex";
+            const cols = parseInt(gridRes.value);
+            const ratio = targetImg.height / targetImg.width;
+            const rows = Math.round(cols * ratio);
+            outputCanvas.width = 1500; outputCanvas.height = Math.round(1500 * ratio);
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0,0,outputCanvas.width,outputCanvas.height);
+            const cellW = outputCanvas.width / cols; const cellH = outputCanvas.height / rows;
+            const sCanvas = document.createElement('canvas'); sCanvas.width = cols*2; sCanvas.height = rows*2;
+            const sCtx = sCanvas.getContext('2d'); sCtx.drawImage(targetImg, 0, 0, sCanvas.width, sCanvas.height);
+            const targetData = sCtx.getImageData(0,0,sCanvas.width,sCanvas.height).data;
+            const sessionGrid = [];
+            let isFirstRow = true;
+            for (let y = 0; y < rows; y++) {
+                if (sessionId !== currentSessionId) return;
+                const row = []; for(let x=0; x<cols; x++) row.push(getDesc(targetData, x, y, cols, rows));
+                const results = await requestRow(row, y, sessionId, isFirstRow);
+                isFirstRow = false;
+                if (results && sessionId === currentSessionId) {
+                    const rowIndices = [];
+                    results.forEach((indices, x) => {
+                        if (sessionId !== currentSessionId) return;
+                        const available = indices.filter(i => !globallyUsed.has(i));
+                        const chosen = (available.length > 0 ? available : indices)[0];
+                        globallyUsed.add(chosen);
+                        rowIndices.push(chosen);
+                        ctx.drawImage(tiles[chosen].img, x * cellW, y * cellH, cellW, cellH);
+                    });
+                    sessionGrid.push(rowIndices);
+                    if (y === 0) loader.style.display = "none";
+                }
+                await new Promise(r => setTimeout(r, 0));
+            }
+            if (sessionId === currentSessionId) {
+                loader.style.display = "none";
+                activeGridData = { grid: sessionGrid, cols, rows, ratio };
+                document.getElementById('dl4K').disabled = false;
+                document.getElementById('dl8K').disabled = false;
+            }
+        }
+
+        async function exportMaster(targetWidth) {
+            if (!activeGridData) return;
+            const { grid, cols, rows, ratio } = activeGridData;
+            const mCanvas = document.createElement('canvas');
+            mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
+            const mCtx = mCanvas.getContext('2d');
+            mCtx.imageSmoothingEnabled = false;
+            const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const tileIdx = grid[y][x];
+                    mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+                }
+            }
+            const link = document.createElement('a');
+            link.download = `Lumina_${targetWidth === 8000 ? '8K_Master' : '4K_Master'}.png`;
+            link.href = mCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        document.getElementById('dl4K').onclick = () => exportMaster(4000);
+        document.getElementById('dl8K').onclick = () => exportMaster(8000);
+
+        function requestRow(row, y, sessionId, resetUsage) {
+            return new Promise(resolve => {
+                const h = (e) => { if (e.data.type === 'ROW_RESULTS' && e.data.y === y && e.data.sessionId === sessionId) { worker.removeEventListener('message', h); resolve(e.data.results); } };
+                if (sessionId !== currentSessionId) { resolve(null); return; }
+                worker.addEventListener('message', h); 
+                worker.postMessage({ type: 'SEARCH_ROW', data: { row, y }, sessionId, resetUsage });
+            });
+        }
+        function initWorker() {
+            if (worker) worker.terminate();
+            const blob = new Blob([document.getElementById('workerScript').textContent], { type: 'text/javascript' });
+            worker = new Worker(URL.createObjectURL(blob));
+            worker.postMessage({ type: 'INIT', data: { points: tiles.map(t => ({ descriptor: t.descriptor, index: t.index })), dims: 7 } });
+        }
+        function avgColor(d) { let r=0,g=0,b=0; for (let j=0; j<400; j+=4) { r+=d[j]; g+=d[j+1]; b+=d[j+2]; } return [r/100,g/100,b/100]; }
+        function getDesc(data, x, y, cols, rows) {
+            const idx = (y * 2 * cols * 2 + x * 2) * 4;
+            return [...ColorUtils.rgbToLab(data[idx], data[idx+1], data[idx+2]), 0,0,0,0];
+        }
+        function loadImage(src) { return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }); }
+        window.onload = () => { document.getElementById('gridLabel').innerText = `${gridRes.value}x${gridRes.value}`; };
+    </script>
+</body>
+</html>
