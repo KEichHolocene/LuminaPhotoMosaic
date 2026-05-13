@@ -1,158 +1,192 @@
-import { MosaicEngine, ColorUtils } from './engine.js';
+import { ColorUtils } from './engine.js';
 
-const engine = new MosaicEngine();
-let targetImage = null;
+let tiles = [];
+let targetImg = null;
+let globallyUsed = new Set();
+let currentSessionId = 0;
+let debounceTimer = null;
+let activeGridData = null;
+const seenHashes = new Set();
 
-// UI Elements
-const targetDrop = document.getElementById('targetDrop');
-const tileDrop = document.getElementById('tileDrop');
+const gridRes = document.getElementById('gridRes');
+const gridLabel = document.getElementById('gridLabel');
+const outputCanvas = document.getElementById('outputCanvas');
+const ctx = outputCanvas.getContext('2d');
+const loader = document.getElementById('novaLoader');
+const vaultStatus = document.getElementById('vaultStatus');
+const tileCount = document.getElementById('tileCount');
+const libraryVault = document.getElementById('libraryVault');
 const targetInput = document.getElementById('targetInput');
 const tileInput = document.getElementById('tileInput');
-const generateBtn = document.getElementById('generateBtn');
-const tileStats = document.getElementById('tileStats');
-const outputCanvas = document.getElementById('outputCanvas');
-const gridRes = document.getElementById('gridRes');
-const gridResVal = document.getElementById('gridResVal');
-const loader = document.getElementById('loader');
-const engineStatus = document.getElementById('engineStatus');
+const targetSlot = document.getElementById('targetSlot');
+const tileSlot = document.getElementById('tileSlot');
+const targetName = document.getElementById('targetName');
 
-// Interaction
-targetDrop.onclick = () => targetInput.click();
-tileDrop.onclick = () => tileInput.click();
+// Setup Interactions
+targetSlot.onclick = () => targetInput.click();
+tileSlot.onclick = () => tileInput.click();
 
-gridRes.oninput = () => {
-    gridResVal.innerText = `${gridRes.value}x${Math.round(gridRes.value * (targetImage ? targetImage.height/targetImage.width : 1))}px`;
+targetInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    targetImg = await loadImage(URL.createObjectURL(file));
+    targetName.innerText = file.name;
+    autoTrigger();
 };
 
-targetInput.onchange = (e) => handleTarget(e.target.files[0]);
-tileInput.onchange = (e) => handleTiles(e.target.files);
-
-async function handleTarget(file) {
-    if (!file) return;
-    targetImage = await loadImage(URL.createObjectURL(file));
-    targetDrop.innerHTML = `<img src="${targetImage.src}" style="max-height: 100px; border-radius: 4px;">`;
-    updateStatus();
-}
-
-async function handleTiles(files) {
-    loader.classList.remove('hidden');
-    document.getElementById('loaderText').innerText = `Indexing ${files.length} tiles...`;
+tileInput.onchange = async (e) => {
+    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    loader.style.display = "flex";
     
-    let loaded = 0;
-    for (const file of files) {
-        if (!file.type.startsWith('image/')) continue;
+    const dCanvas = document.createElement('canvas'); dCanvas.width = 10; dCanvas.height = 10;
+    const dCtx = dCanvas.getContext('2d');
+    const getDHash = (data) => { let h = ""; for(let i=0;i<64;i++) h+=(data[i*4]>data[(i+1)*4])?"1":"0"; return h; };
+
+    for (let i = 0; i < files.length; i++) {
         try {
-            const img = await loadImage(URL.createObjectURL(file));
-            engine.addTile(img, file.name);
-            loaded++;
-            if (loaded % 50 === 0) {
-                document.getElementById('loaderText').innerText = `Indexing: ${loaded}/${files.length}`;
+            const raw = await createImageBitmap(files[i]);
+            const min = Math.min(raw.width, raw.height);
+            const bitmap = await createImageBitmap(raw, (raw.width-min)/2, (raw.height-min)/2, min, min, { resizeWidth: 64, resizeHeight: 64 });
+            raw.close();
+            
+            dCtx.drawImage(bitmap, 0, 0, 10, 10);
+            const data = dCtx.getImageData(0,0,10,10).data;
+            const hash = getDHash(data);
+            
+            if (!seenHashes.has(hash)) {
+                seenHashes.add(hash);
+                const tc = document.createElement('canvas'); tc.width = 64; tc.height = 64;
+                tc.getContext('2d').drawImage(bitmap, 0, 0);
+                tiles.push({ 
+                    img: tc, 
+                    descriptor: [...ColorUtils.rgbToLab(...ColorUtils.avgColor(data)), 0,0,0,0], 
+                    index: tiles.length 
+                });
+                
+                if (tiles.length <= 100) {
+                    const vItem = document.createElement('img');
+                    vItem.src = tc.toDataURL();
+                    vItem.className = "vault-item";
+                    libraryVault.appendChild(vItem);
+                }
             }
-        } catch (err) {
-            console.error("Failed to load tile", file.name);
+            bitmap.close();
+        } catch(err) {}
+        
+        if (i % 20 === 0) {
+            vaultStatus.innerText = `Indexing: ${Math.round((i/files.length)*100)}%`;
+            await new Promise(r => setTimeout(r, 0));
         }
     }
     
-    engine.indexTiles();
-    tileStats.innerText = `${loaded} tiles indexed and ready.`;
-    loader.classList.add('hidden');
-    updateStatus();
-}
+    vaultStatus.innerText = "+ Expand Archive";
+    tileCount.innerText = `${tiles.length} Units Pooled`;
+    loader.style.display = "none";
+    autoTrigger();
+};
 
-function updateStatus() {
-    if (targetImage && engine.tiles.length > 0) {
-        generateBtn.disabled = false;
-        engineStatus.innerText = "Engine: Ready";
-    }
-}
+gridRes.oninput = () => {
+    const ratio = targetImg ? (targetImg.height/targetImg.width) : 1;
+    gridLabel.innerText = `${gridRes.value}x${Math.round(gridRes.value * ratio)}`;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(autoTrigger, 200);
+};
 
-generateBtn.onclick = async () => {
-    if (!targetImage || engine.tiles.length === 0) return;
-    
-    loader.classList.remove('hidden');
-    document.getElementById('loaderText').innerText = "Generating Mosaic...";
+async function autoTrigger() {
+    if (!targetImg || tiles.length === 0) return;
+    const sessionId = ++currentSessionId;
+    globallyUsed.clear(); 
+    loader.style.display = "flex";
     
     const cols = parseInt(gridRes.value);
-    const cellW = targetImage.width / cols;
-    const rows = Math.round(targetImage.height / cellW);
-    const cellH = targetImage.height / rows;
-
-    outputCanvas.width = targetImage.width;
-    outputCanvas.height = targetImage.height;
-    const ctx = outputCanvas.getContext('2d');
+    const ratio = targetImg.height / targetImg.width;
+    const rows = Math.round(cols * ratio);
     
-    // Draw target to hidden canvas to sample
-    const sampleCanvas = document.createElement('canvas');
-    sampleCanvas.width = targetImage.width;
-    sampleCanvas.height = targetImage.height;
-    const sCtx = sampleCanvas.getContext('2d');
-    sCtx.drawImage(targetImage, 0, 0);
-
+    outputCanvas.width = 1500;
+    outputCanvas.height = Math.round(1500 * ratio);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0,0,outputCanvas.width,outputCanvas.height);
+    
+    const cellW = outputCanvas.width / cols;
+    const cellH = outputCanvas.height / rows;
+    
+    // Sample Canvas
+    const sCanvas = document.createElement('canvas'); 
+    sCanvas.width = cols; 
+    sCanvas.height = rows;
+    const sCtx = sCanvas.getContext('2d'); 
+    sCtx.drawImage(targetImg, 0, 0, cols, rows);
+    const targetData = sCtx.getImageData(0,0,cols,rows).data;
+    
+    const sessionGrid = [];
+    
     for (let y = 0; y < rows; y++) {
+        if (sessionId !== currentSessionId) return;
+        const rowIndices = [];
+        
         for (let x = 0; x < cols; x++) {
-            const sx = x * cellW;
-            const sy = y * cellH;
+            const idx = (y * cols + x) * 4;
+            const targetLab = ColorUtils.rgbToLab(targetData[idx], targetData[idx+1], targetData[idx+2]);
             
-            // 1. Get Target Descriptor for this cell
-            const descriptor = extractCellDescriptor(sCtx, sx, sy, cellW, cellH);
+            // Simple Linear Search for now (KDTree could be added if needed)
+            let bestIdx = 0;
+            let bestDist = Infinity;
             
-            // 2. Find Match
-            const match = engine.match(descriptor);
+            // Optimization: Only check a subset or use full search
+            for (let i = 0; i < tiles.length; i++) {
+                const dist = getDist(targetLab, tiles[i].descriptor);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
             
-            // 3. Draw Match to main canvas
-            ctx.drawImage(match.img, sx, sy, cellW, cellH);
+            rowIndices.push(bestIdx);
+            ctx.drawImage(tiles[bestIdx].img, x * cellW, y * cellH, cellW, cellH);
         }
-        // Yield to UI occasionally
+        
+        sessionGrid.push(rowIndices);
         if (y % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
     
-    loader.classList.add('hidden');
-    engineStatus.innerText = "Engine: Complete";
-};
-
-function extractCellDescriptor(ctx, x, y, w, h) {
-    const data = ctx.getImageData(x, y, w, h).data;
-    let r = 0, g = 0, b = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        r += data[i]; g += data[i+1]; b += data[i+2];
+    if (sessionId === currentSessionId) {
+        loader.style.display = "none";
+        activeGridData = { grid: sessionGrid, cols, rows, ratio };
+        document.getElementById('dl4K').disabled = false;
+        document.getElementById('dl8K').disabled = false;
     }
-    const count = data.length / 4;
-    const lab = ColorUtils.rgbToLab(r/count, g/count, b/count);
-
-    // Quad descriptors for the target cell
-    const qW = Math.floor(w/2);
-    const qH = Math.floor(h/2);
-    
-    const quads = [
-        avgLuminance(data, 0, 0, qW, qH, w),
-        avgLuminance(data, qW, 0, qW, qH, w),
-        avgLuminance(data, 0, qH, qW, qH, w),
-        avgLuminance(data, qW, qH, qW, qH, w)
-    ];
-
-    return [...lab, ...quads];
 }
 
-function avgLuminance(data, x, y, w, h, stride) {
+function getDist(a, b) {
     let sum = 0;
-    let count = 0;
-    for (let i = y; i < y + h; i++) {
-        for (let j = x; j < x + w; j++) {
-            const idx = (i * stride + j) * 4;
-            if (idx + 2 < data.length) {
-                sum += (data[idx] * 0.299 + data[idx+1] * 0.587 + data[idx+2] * 0.114);
-                count++;
-            }
+    for (let i = 0; i < 3; i++) { sum += Math.pow((a[i] - b[i]), 2); }
+    return Math.sqrt(sum);
+}
+
+function loadImage(src) { 
+    return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }); 
+}
+
+// Export Logic
+async function exportMaster(targetWidth) {
+    if (!activeGridData) return;
+    const { grid, cols, rows, ratio } = activeGridData;
+    const mCanvas = document.createElement('canvas');
+    mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
+    const mCtx = mCanvas.getContext('2d');
+    mCtx.imageSmoothingEnabled = false;
+    const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+            const tileIdx = grid[y][x];
+            mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
         }
     }
-    return count > 0 ? sum / count : 0;
+    const link = document.createElement('a');
+    link.download = `Lumina_${targetWidth === 8000 ? '8K_Master' : '4K_Master'}.png`;
+    link.href = mCanvas.toDataURL('image/png');
+    link.click();
 }
 
-function loadImage(src) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = src;
-    });
-}
+document.getElementById('dl4K').onclick = () => exportMaster(4000);
+document.getElementById('dl8K').onclick = () => exportMaster(8000);

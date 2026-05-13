@@ -2,76 +2,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lumina | Premium Photomosaic Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#020204">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Lumina | Sovereign Mobile Suite</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app">
-        <header>
-            <div class="logo">
-                <span class="accent">Lumina</span> Mosaic
+    <div id="previewPane">
+        <canvas id="outputCanvas"></canvas>
+        <div class="nova-container" id="novaLoader">
+            <div class="nova-inner">
+                <div class="nova-ring"></div>
+                <div class="star-core"></div>
             </div>
-            <nav>
-                <div class="status" id="engineStatus">Engine: Idle</div>
-            </nav>
-        </header>
-
-        <main>
-            <section class="controls">
-                <div class="card glass">
-                    <h3>1. Target Image</h3>
-                    <div class="drop-zone" id="targetDrop">
-                        <p>Drag target image here</p>
-                        <input type="file" id="targetInput" accept="image/*" hidden>
-                    </div>
-                </div>
-
-                <div class="card glass">
-                    <h3>2. Tile Library</h3>
-                    <div class="drop-zone" id="tileDrop">
-                        <p>Drag folder of images</p>
-                        <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
-                    </div>
-                    <div id="tileStats" class="stats-text">0 tiles loaded</div>
-                </div>
-
-                <div class="card glass settings">
-                    <h3>3. Engine Specs</h3>
-                    <div class="setting-group">
-                        <label>Grid Resolution</label>
-                        <input type="range" id="gridRes" min="20" max="200" value="64">
-                        <span id="gridResVal">64x64</span>
-                    </div>
-                    <div class="setting-group">
-                        <label>Color Logic</label>
-                        <select id="colorMode">
-                            <option value="lab">CIELAB (Perceptual)</option>
-                            <option value="rgb">RGB (Fast)</option>
-                        </select>
-                    </div>
-                    <button id="generateBtn" class="btn-primary" disabled>Generate Mosaic</button>
-                </div>
-            </section>
-
-            <section class="viewport">
-                <div class="canvas-container glass">
-                    <canvas id="outputCanvas"></canvas>
-                    <div id="loader" class="loader-overlay hidden">
-                        <div class="spinner"></div>
-                        <p id="loaderText">Analyzing tiles...</p>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <p>&copy; 2026 Lumina Engine | High-Fidelity Photomosaics</p>
-        </footer>
+        </div>
     </div>
+
+    <div id="content">
+        <section>
+            <div class="section-label">01 Subject Material</div>
+            <div class="slot" id="targetSlot">
+                <p id="targetName" style="font-size: 0.8rem; opacity: 0.6; font-weight: 500;">Drop subject image here</p>
+                <input type="file" id="targetInput" accept="image/*" hidden>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-label">02 Curation Palette</div>
+            <div id="priorityPalette" class="slot" style="padding: 10px; min-height: 100px; display: flex; gap: 12px; overflow-x: auto; align-items: center;">
+                <div style="width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.2; font-size: 0.7rem; font-weight: 500;">Drag tiles here</div>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-label">03 Tile Archive</div>
+            <div class="slot" id="tileSlot" style="padding: 15px; margin-bottom: 12px;">
+                <p id="vaultStatus" style="font-size: 0.7rem; font-weight: 600;">+ Import Collection</p>
+                <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
+            </div>
+            <div id="libraryVault"></div>
+        </section>
+
+        <section class="controls-card">
+            <div class="section-label">Grid Density</div>
+            <input type="range" id="gridRes" min="20" max="150" value="40">
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 700; opacity: 0.4;">
+                <span id="gridLabel">40x40</span>
+                <span id="tileCount">No Library</span>
+            </div>
+        </section>
+    </div>
+
+    <div id="bottomBar">
+        <div class="branding">
+            <h1>LUMINA</h1>
+            <p>Mobile Suite</p>
+            <div class="privacy-pill">OFFLINE ENGINE</div>
+        </div>
+        <div class="export-group">
+            <button class="download-btn" id="dl4K" disabled>4K</button>
+            <button class="download-btn primary" id="dl8K" disabled>8K MASTER</button>
+        </div>
+    </div>
+
     <script type="module" src="app.js"></script>
 </body>
 </html>
