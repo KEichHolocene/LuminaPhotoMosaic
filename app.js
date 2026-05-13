@@ -204,6 +204,11 @@ previewPane.addEventListener('touchmove', (e) => {
 previewPane.addEventListener('touchend', () => { isPanning = false; });
 
 // Orientation & Resize
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+if (isMobile) {
+    document.getElementById('dl8K').style.display = 'none';
+}
+
 function fitCanvas() {
     if (!activeGridData) return;
     const pane = previewPane.getBoundingClientRect();
@@ -250,7 +255,20 @@ async function exportMaster(targetWidth) {
         }
         
         dlStatus.innerText = "GENERATING BLOB...";
+        
+        // Timeout guard for 8K on borderline devices
+        const timeout = setTimeout(() => {
+            alert("Export taking too long. This device may not have enough RAM for this resolution.");
+            dlLoader.style.display = "none";
+        }, 15000);
+
         mCanvas.toBlob((blob) => {
+            clearTimeout(timeout);
+            if (!blob) {
+                alert("Mastering failed. Try a lower resolution.");
+                dlLoader.style.display = "none";
+                return;
+            }
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.download = `Lumina_${targetWidth >= 8000 ? '8K_Master' : '4K_Master'}.png`;
