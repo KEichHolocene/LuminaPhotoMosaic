@@ -18,14 +18,17 @@ const tileCount = document.getElementById('tileCount');
 const libraryVault = document.getElementById('libraryVault');
 const targetInput = document.getElementById('targetInput');
 const tileInput = document.getElementById('tileInput');
+const tileInputMobile = document.getElementById('tileInputMobile');
 const targetSlot = document.getElementById('targetSlot');
 const tileSlot = document.getElementById('tileSlot');
 const targetName = document.getElementById('targetName');
 const previewPane = document.getElementById('previewPane');
 
 // Setup Interactions
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 targetSlot.onclick = () => targetInput.click();
-tileSlot.onclick = () => tileInput.click();
+tileSlot.onclick = () => isMobile ? tileInputMobile.click() : tileInput.click();
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];
@@ -35,7 +38,10 @@ targetInput.onchange = async (e) => {
     autoTrigger();
 };
 
-tileInput.onchange = async (e) => {
+tileInputMobile.onchange = (e) => handleTiles(e);
+tileInput.onchange = (e) => handleTiles(e);
+
+async function handleTiles(e) {
     const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
     loader.style.display = "flex";
     
@@ -242,13 +248,14 @@ async function exportMaster(targetWidth) {
         
         dlStatus.innerText = "RENDERING PIXELS...";
         const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
+        const yieldInterval = targetWidth >= 8000 ? 10 : 100; // Fast-path for 4K
         
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 const tileIdx = grid[y][x];
                 mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
             }
-            if (y % 10 === 0) {
+            if (y % yieldInterval === 0) {
                 dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
                 await new Promise(r => setTimeout(r, 0));
             }
