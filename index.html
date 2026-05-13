@@ -14,7 +14,33 @@
 </head>
 <body>
     <div id="previewPane">
-        <canvas id="outputCanvas"></canvas>
+        <style>
+            #outputCanvas { 
+                max-width: none;
+                max-height: none; 
+                transform-origin: center;
+                transition: transform 0.1s ease-out;
+                image-rendering: crisp-edges;
+                image-rendering: pixelated;
+                box-shadow: 0 0 50px var(--accent-glow);
+                cursor: grab;
+            }
+
+            .download-overlay {
+                position: absolute;
+                inset: 0;
+                background: rgba(0,0,0,0.8);
+                display: none;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                backdrop-filter: blur(10px);
+            }
+        </style>
+        <div id="canvasViewport" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+            <canvas id="outputCanvas"></canvas>
+        </div>
         <div class="nova-container" id="novaLoader">
             <div class="nova-inner">
                 <div class="nova-ring"></div>
@@ -68,6 +94,15 @@
             <button class="download-btn" id="dl4K" disabled>4K</button>
             <button class="download-btn primary" id="dl8K" disabled>8K MASTER</button>
         </div>
+    </div>
+
+    <div id="downloadLoader" class="download-overlay">
+        <div class="nova-inner">
+            <div class="nova-ring"></div>
+            <div class="star-core"></div>
+        </div>
+        <p style="margin-top: 30px; font-weight: 800; letter-spacing: 2px; font-size: 0.7rem;">MASTERING IMAGE...</p>
+        <p style="margin-top: 10px; color: var(--text-dim); font-size: 0.5rem;" id="dlStatus">ALLOCATING MEMORY</p>
     </div>
 
     <script type="module" src="app.js"></script>

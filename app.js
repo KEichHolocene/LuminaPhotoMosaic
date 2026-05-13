@@ -21,6 +21,7 @@ const tileInput = document.getElementById('tileInput');
 const targetSlot = document.getElementById('targetSlot');
 const tileSlot = document.getElementById('tileSlot');
 const targetName = document.getElementById('targetName');
+const previewPane = document.getElementById('previewPane');
 
 // Setup Interactions
 targetSlot.onclick = () => targetInput.click();
@@ -154,6 +155,7 @@ async function autoTrigger() {
         activeGridData = { grid: sessionGrid, cols, rows, ratio };
         document.getElementById('dl4K').disabled = false;
         document.getElementById('dl8K').disabled = false;
+        fitCanvas(); // Auto-fit the new mosaic
     }
 }
 
@@ -163,30 +165,113 @@ function getDist(a, b) {
     return Math.sqrt(sum);
 }
 
-function loadImage(src) { 
-    return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }); 
+// Interaction & Zoom State
+let zoom = 1;
+let lastDist = 0;
+let isPanning = false;
+let startX, startY, originX = 0, originY = 0;
+
+function updateTransform() {
+    outputCanvas.style.transform = `translate(${originX}px, ${originY}px) scale(${zoom})`;
 }
 
-// Export Logic
+// Pinch Zoom Logic
+previewPane.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+        lastDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+    } else if (e.touches.length === 1) {
+        isPanning = true;
+        startX = e.touches[0].pageX - originX;
+        startY = e.touches[0].pageY - originY;
+    }
+});
+
+previewPane.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+        const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        const delta = dist / lastDist;
+        zoom = Math.min(Math.max(0.1, zoom * delta), 10);
+        lastDist = dist;
+        updateTransform();
+    } else if (e.touches.length === 1 && isPanning) {
+        originX = e.touches[0].pageX - startX;
+        originY = e.touches[0].pageY - startY;
+        updateTransform();
+    }
+}, { passive: false });
+
+previewPane.addEventListener('touchend', () => { isPanning = false; });
+
+// Orientation & Resize
+function fitCanvas() {
+    if (!activeGridData) return;
+    const pane = previewPane.getBoundingClientRect();
+    const ratio = activeGridData.ratio;
+    
+    // Fit to viewport
+    if (pane.width / pane.height > 1 / ratio) {
+        zoom = (pane.height * 0.9) / (1500 * ratio);
+    } else {
+        zoom = (pane.width * 0.9) / 1500;
+    }
+    originX = 0; originY = 0;
+    updateTransform();
+}
+
+window.addEventListener('resize', fitCanvas);
+
+// Async Export with Feedback
 async function exportMaster(targetWidth) {
     if (!activeGridData) return;
-    const { grid, cols, rows, ratio } = activeGridData;
-    const mCanvas = document.createElement('canvas');
-    mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
-    const mCtx = mCanvas.getContext('2d');
-    mCtx.imageSmoothingEnabled = false;
-    const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
-    for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-            const tileIdx = grid[y][x];
-            mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+    const dlLoader = document.getElementById('downloadLoader');
+    const dlStatus = document.getElementById('dlStatus');
+    dlLoader.style.display = "flex";
+    
+    try {
+        const { grid, cols, rows, ratio } = activeGridData;
+        const mCanvas = document.createElement('canvas');
+        mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
+        const mCtx = mCanvas.getContext('2d');
+        mCtx.imageSmoothingEnabled = false;
+        
+        dlStatus.innerText = "RENDERING PIXELS...";
+        const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
+        
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                const tileIdx = grid[y][x];
+                mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+            }
+            if (y % 10 === 0) {
+                dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
+                await new Promise(r => setTimeout(r, 0));
+            }
         }
+        
+        dlStatus.innerText = "GENERATING BLOB...";
+        mCanvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `Lumina_${targetWidth >= 8000 ? '8K_Master' : '4K_Master'}.png`;
+            link.href = url;
+            link.click();
+            
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                dlLoader.style.display = "none";
+            }, 1000);
+        }, 'image/png');
+        
+    } catch (err) {
+        alert("Memory limit exceeded for 8K Master. Try 4K instead.");
+        dlLoader.style.display = "none";
     }
-    const link = document.createElement('a');
-    link.download = `Lumina_${targetWidth === 8000 ? '8K_Master' : '4K_Master'}.png`;
-    link.href = mCanvas.toDataURL('image/png');
-    link.click();
 }
 
 document.getElementById('dl4K').onclick = () => exportMaster(4000);
 document.getElementById('dl8K').onclick = () => exportMaster(8000);
+
+function loadImage(src) { 
+    return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }); 
+}
