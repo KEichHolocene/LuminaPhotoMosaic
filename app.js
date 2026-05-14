@@ -248,14 +248,30 @@ async function exportMaster(targetWidth) {
         
         dlStatus.innerText = "RENDERING PIXELS...";
         const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
-        const yieldInterval = targetWidth >= 8000 ? 10 : 100; // Fast-path for 4K
         
+        // Fast-path for 4K: No yielding, use DataURL for instant response
+        if (targetWidth < 8000) {
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const tileIdx = grid[y][x];
+                    mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+                }
+            }
+            const link = document.createElement('a');
+            link.download = `Lumina_4K_Master.png`;
+            link.href = mCanvas.toDataURL('image/png');
+            link.click();
+            dlLoader.style.display = "none";
+            return;
+        }
+
+        // Slow-path for 8K: Use yielding and Blobs to prevent crashes
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 const tileIdx = grid[y][x];
                 mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
             }
-            if (y % yieldInterval === 0) {
+            if (y % 10 === 0) {
                 dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
                 await new Promise(r => setTimeout(r, 0));
             }
