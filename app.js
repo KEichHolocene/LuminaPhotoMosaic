@@ -32,6 +32,7 @@ const dlStatus = document.getElementById('dlStatus');
 
 // Setup Interactions
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 if (isMobile) {
     dl8K.style.display = 'none';
 }
@@ -50,7 +51,9 @@ folderImportBtn.onclick = (e) => {
     e.stopPropagation();
     tileInput.click();
 };
-folderImportBtn.hidden = !('webkitdirectory' in tileInput);
+tileInputMobile.multiple = true;
+tileInputMobile.setAttribute('multiple', 'multiple');
+folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];

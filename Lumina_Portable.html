@@ -166,8 +166,8 @@
                     <button type="button" class="import-btn" id="photoImportBtn">Photos</button>
                     <button type="button" class="import-btn" id="folderImportBtn">Folder</button>
                 </div>
-                <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
-                <input type="file" id="tileInputMobile" multiple accept="image/*" hidden>
+                <input type="file" id="tileInput" webkitdirectory directory multiple="multiple" accept="image/*,.heic,.heif" hidden>
+                <input type="file" id="tileInputMobile" multiple="multiple" accept="image/*,.heic,.heif" hidden>
             </div>
             <div id="libraryVault"></div>
         </section>
@@ -304,7 +304,10 @@
             e.stopPropagation();
             tileInput.click();
         };
-        folderImportBtn.hidden = !('webkitdirectory' in tileInput);
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        tileInputMobile.multiple = true;
+        tileInputMobile.setAttribute('multiple', 'multiple');
+        folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
 
         async function handleTargetDrop(e) {
             e.preventDefault();
