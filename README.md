@@ -106,5 +106,6 @@ Preview the production build:
 ```bash
 npm run preview
 ```
-
+## Future Directions
+Each mosaic is a fingerprint waiting to become a key.
 
