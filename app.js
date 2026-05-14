@@ -23,9 +23,20 @@ const targetSlot = document.getElementById('targetSlot');
 const tileSlot = document.getElementById('tileSlot');
 const targetName = document.getElementById('targetName');
 const previewPane = document.getElementById('previewPane');
+const dl4K = document.getElementById('dl4K');
+const dl8K = document.getElementById('dl8K');
+const downloadLoader = document.getElementById('downloadLoader');
+const dlStatus = document.getElementById('dlStatus');
 
 // Setup Interactions
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+if (isMobile) {
+    dl8K.style.display = 'none';
+}
+
+function setBusy(isBusy) {
+    document.body.classList.toggle('is-busy', isBusy);
+}
 
 targetSlot.onclick = () => targetInput.click();
 tileSlot.onclick = () => isMobile ? tileInputMobile.click() : tileInput.click();
@@ -104,6 +115,7 @@ async function autoTrigger() {
     const sessionId = ++currentSessionId;
     globallyUsed.clear(); 
     loader.style.display = "flex";
+    setBusy(true);
     
     const cols = parseInt(gridRes.value);
     const ratio = targetImg.height / targetImg.width;
@@ -158,9 +170,10 @@ async function autoTrigger() {
     
     if (sessionId === currentSessionId) {
         loader.style.display = "none";
+        setBusy(false);
         activeGridData = { grid: sessionGrid, cols, rows, ratio };
-        document.getElementById('dl4K').disabled = false;
-        document.getElementById('dl8K').disabled = false;
+        dl4K.disabled = false;
+        dl8K.disabled = false;
         fitCanvas(); // Auto-fit the new mosaic
     }
 }
@@ -183,6 +196,7 @@ function updateTransform() {
 
 // Pinch Zoom Logic
 previewPane.addEventListener('touchstart', (e) => {
+    if (document.body.classList.contains('is-busy')) return;
     if (e.touches.length === 2) {
         lastDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
     } else if (e.touches.length === 1) {
@@ -194,6 +208,7 @@ previewPane.addEventListener('touchstart', (e) => {
 
 previewPane.addEventListener('touchmove', (e) => {
     e.preventDefault();
+    if (document.body.classList.contains('is-busy')) return;
     if (e.touches.length === 2) {
         const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
         const delta = dist / lastDist;
@@ -208,12 +223,6 @@ previewPane.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 previewPane.addEventListener('touchend', () => { isPanning = false; });
-
-// Orientation & Resize
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-if (isMobile) {
-    document.getElementById('dl8K').style.display = 'none';
-}
 
 function fitCanvas() {
     if (!activeGridData) return;
@@ -235,9 +244,8 @@ window.addEventListener('resize', fitCanvas);
 // Async Export with Feedback
 async function exportMaster(targetWidth) {
     if (!activeGridData) return;
-    const dlLoader = document.getElementById('downloadLoader');
-    const dlStatus = document.getElementById('dlStatus');
-    dlLoader.style.display = "flex";
+    downloadLoader.style.display = "flex";
+    setBusy(true);
     
     try {
         const { grid, cols, rows, ratio } = activeGridData;
@@ -248,70 +256,47 @@ async function exportMaster(targetWidth) {
         
         dlStatus.innerText = "RENDERING PIXELS...";
         const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
-        
-        // Fast-path for 4K: No yielding, use DataURL for instant response
-        if (targetWidth < 8000) {
-            for (let y = 0; y < rows; y++) {
-                for (let x = 0; x < cols; x++) {
-                    const tileIdx = grid[y][x];
-                    mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
-                }
-            }
-            const link = document.createElement('a');
-            link.download = `Lumina_4K_Master.png`;
-            link.href = mCanvas.toDataURL('image/png');
-            link.click();
-            dlLoader.style.display = "none";
-            return;
-        }
 
-        // Slow-path for 8K: Use yielding and Blobs to prevent crashes
+        const yieldEvery = targetWidth >= 8000 ? 10 : 16;
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 const tileIdx = grid[y][x];
                 mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
             }
-            if (y % 10 === 0) {
+            if (y % yieldEvery === 0) {
                 dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
                 await new Promise(r => setTimeout(r, 0));
             }
         }
         
-        dlStatus.innerText = "GENERATING BLOB...";
-        
-        // Timeout guard for 8K on borderline devices
-        const timeout = setTimeout(() => {
-            alert("Export taking too long. This device may not have enough RAM for this resolution.");
-            dlLoader.style.display = "none";
-        }, 15000);
+        dlStatus.innerText = "ENCODING PNG...";
+        const blob = await canvasToBlob(mCanvas, 'image/png');
+        if (!blob) {
+            alert("Mastering failed. Try a lower resolution.");
+            return;
+        }
 
-        mCanvas.toBlob((blob) => {
-            clearTimeout(timeout);
-            if (!blob) {
-                alert("Mastering failed. Try a lower resolution.");
-                dlLoader.style.display = "none";
-                return;
-            }
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = `Lumina_${targetWidth >= 8000 ? '8K_Master' : '4K_Master'}.png`;
-            link.href = url;
-            link.click();
-            
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-                dlLoader.style.display = "none";
-            }, 1000);
-        }, 'image/png');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `Lumina_${targetWidth >= 8000 ? '8K_Master' : '4K_Master'}.png`;
+        link.href = url;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         
     } catch (err) {
-        alert("Memory limit exceeded for 8K Master. Try 4K instead.");
-        dlLoader.style.display = "none";
+        alert(targetWidth >= 8000 ? "Memory limit exceeded for 8K Master. Try 4K instead." : "Export failed. Try a lower grid density.");
+    } finally {
+        downloadLoader.style.display = "none";
+        setBusy(false);
     }
 }
 
-document.getElementById('dl4K').onclick = () => exportMaster(4000);
-document.getElementById('dl8K').onclick = () => exportMaster(8000);
+function canvasToBlob(canvas, type) {
+    return new Promise(resolve => canvas.toBlob(resolve, type));
+}
+
+dl4K.onclick = () => exportMaster(4000);
+dl8K.onclick = () => exportMaster(8000);
 
 function loadImage(src) { 
     return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }); 

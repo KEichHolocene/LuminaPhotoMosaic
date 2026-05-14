@@ -14,31 +14,7 @@
 </head>
 <body>
     <div id="previewPane">
-        <style>
-            #outputCanvas { 
-                max-width: none;
-                max-height: none; 
-                transform-origin: center;
-                transition: transform 0.1s ease-out;
-                image-rendering: crisp-edges;
-                image-rendering: pixelated;
-                box-shadow: 0 0 50px var(--accent-glow);
-                cursor: grab;
-            }
-
-            .download-overlay {
-                position: absolute;
-                inset: 0;
-                background: rgba(0,0,0,0.8);
-                display: none;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-                backdrop-filter: blur(10px);
-            }
-        </style>
-        <div id="canvasViewport" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+        <div id="canvasViewport">
             <canvas id="outputCanvas"></canvas>
         </div>
         <div class="nova-container" id="novaLoader">
@@ -69,8 +45,8 @@
 
         <section>
             <div class="section-label">02 Curation Palette</div>
-            <div id="priorityPalette" class="slot" style="padding: 10px; min-height: 100px; display: flex; gap: 12px; overflow-x: auto; align-items: center;">
-                <div style="width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.2; font-size: 0.7rem; font-weight: 500;">Drag tiles here</div>
+            <div id="priorityPalette" class="slot">
+                <div class="palette-placeholder">Drag tiles here</div>
             </div>
         </section>
 

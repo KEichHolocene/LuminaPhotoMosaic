@@ -38,12 +38,46 @@ body {
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
-#outputCanvas { 
-    max-width: 95%;
-    max-height: 95%; 
+#canvasViewport {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+#outputCanvas {
+    max-width: none;
+    max-height: none;
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
     image-rendering: crisp-edges;
     image-rendering: pixelated;
     box-shadow: 0 0 50px var(--accent-glow);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+body.is-busy #outputCanvas {
+    cursor: wait;
+    pointer-events: none;
+    transition: none;
+}
+
+.download-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.84);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
 }
 
 .nova-container { 
@@ -160,6 +194,25 @@ body {
     border-radius: var(--radius);
     padding: 25px;
     border: 1px solid var(--border);
+}
+
+#priorityPalette {
+    padding: 10px;
+    min-height: 100px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    align-items: center;
+}
+
+.palette-placeholder {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.2;
+    font-size: 0.7rem;
+    font-weight: 500;
 }
 
 input[type="range"] { 

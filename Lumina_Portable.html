@@ -44,6 +44,12 @@
             image-rendering: crisp-edges; image-rendering: pixelated;
             box-shadow: 0 0 50px var(--accent-glow);
         }
+        body.is-busy #outputCanvas { pointer-events: none; }
+        .download-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.84);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1200; backdrop-filter: blur(10px); pointer-events: auto;
+        }
 
         .nova-container { 
             position: absolute; inset: 0; 
@@ -112,20 +118,29 @@
     </div>
 
     <div id="content">
+        <section class="controls-card">
+            <div class="section-label">Grid Density</div>
+            <input type="range" id="gridRes" min="20" max="150" value="40">
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 700; opacity: 0.4;">
+                <span id="gridLabel">40x40</span>
+                <span id="tileCount">No Library</span>
+            </div>
+        </section>
+
         <section>
-            <div class="section-label">01 Subject Material</div>
+            <div class="section-label">Target Image</div>
             <div class="slot" id="targetSlot" onclick="document.getElementById('targetInput').click()"
                  ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; this.classList.add('drag-over')"
                  ondragenter="event.preventDefault(); this.classList.add('drag-over')"
                  ondragleave="this.classList.remove('drag-over')"
                  ondrop="handleTargetDrop(event)">
-                <p id="targetName" style="font-size: 0.8rem; opacity: 0.6; font-weight: 500;">Drop subject image here</p>
+                <p id="targetName" style="font-size: 0.8rem; opacity: 0.6; font-weight: 500;">Target Image</p>
                 <input type="file" id="targetInput" accept="image/*" hidden>
             </div>
         </section>
 
         <section>
-            <div class="section-label">02 Curation Palette</div>
+            <div class="section-label">Curation Palette</div>
             <div id="priorityPalette" class="slot" style="padding: 10px; min-height: 100px; display: flex; gap: 12px; overflow-x: auto; align-items: center;"
                  ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; this.classList.add('drag-over')"
                  ondragenter="event.preventDefault(); this.classList.add('drag-over')"
@@ -136,21 +151,12 @@
         </section>
 
         <section>
-            <div class="section-label">03 Tile Archive</div>
+            <div class="section-label">Photos</div>
             <div class="slot" style="padding: 15px; margin-bottom: 12px;" onclick="document.getElementById('tileInput').click()">
                 <p id="vaultStatus" style="font-size: 0.7rem; font-weight: 600;">+ Import Collection</p>
                 <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
             </div>
             <div id="libraryVault"></div>
-        </section>
-
-        <section class="controls-card">
-            <div class="section-label">Grid Density</div>
-            <input type="range" id="gridRes" min="20" max="150" value="40">
-            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 700; opacity: 0.4;">
-                <span id="gridLabel">40x40</span>
-                <span id="tileCount">No Library</span>
-            </div>
         </section>
     </div>
 
@@ -166,12 +172,24 @@
         </div>
     </div>
 
+    <div id="downloadLoader" class="download-overlay">
+        <div class="nova-inner">
+            <div class="nova-ring"></div>
+            <div class="star-core"></div>
+        </div>
+        <p style="margin-top: 30px; font-weight: 800; letter-spacing: 2px; font-size: 0.7rem;">MASTERING IMAGE...</p>
+        <p style="margin-top: 10px; color: var(--text-dim); font-size: 0.5rem;" id="dlStatus">ALLOCATING MEMORY</p>
+    </div>
+
     <!-- Service Worker Registration -->
     <script>
-        if ('serviceWorker' in navigator) {
+        const canRegisterInlineWorker = false;
+        if (canRegisterInlineWorker && 'serviceWorker' in navigator) {
             const swCode = `const CACHE_NAME = 'lumina-v1'; self.addEventListener('fetch', (event) => { event.respondWith(caches.match(event.request).then((resp) => resp || fetch(event.request))); });`;
             const blob = new Blob([swCode], {type: 'text/javascript'});
-            navigator.serviceWorker.register(URL.createObjectURL(blob));
+            try {
+                navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+            } catch (err) {}
         }
     </script>
 
@@ -255,6 +273,12 @@
         const outputCanvas = document.getElementById('outputCanvas');
         const ctx = outputCanvas.getContext('2d');
         const loader = document.getElementById('novaLoader');
+        const downloadLoader = document.getElementById('downloadLoader');
+        const dlStatus = document.getElementById('dlStatus');
+
+        function setBusy(isBusy) {
+            document.body.classList.toggle('is-busy', isBusy);
+        }
 
         async function handleTargetDrop(e) {
             e.preventDefault();
@@ -346,6 +370,7 @@
             const sessionId = ++currentSessionId;
             globallyUsed.clear(); 
             loader.style.display = "flex";
+            setBusy(true);
             const cols = parseInt(gridRes.value);
             const ratio = targetImg.height / targetImg.width;
             const rows = Math.round(cols * ratio);
@@ -380,6 +405,7 @@
             }
             if (sessionId === currentSessionId) {
                 loader.style.display = "none";
+                setBusy(false);
                 activeGridData = { grid: sessionGrid, cols, rows, ratio };
                 document.getElementById('dl4K').disabled = false;
                 document.getElementById('dl8K').disabled = false;
@@ -388,22 +414,51 @@
 
         async function exportMaster(targetWidth) {
             if (!activeGridData) return;
-            const { grid, cols, rows, ratio } = activeGridData;
-            const mCanvas = document.createElement('canvas');
-            mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
-            const mCtx = mCanvas.getContext('2d');
-            mCtx.imageSmoothingEnabled = false;
-            const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
-            for (let y = 0; y < rows; y++) {
-                for (let x = 0; x < cols; x++) {
-                    const tileIdx = grid[y][x];
-                    mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+            downloadLoader.style.display = "flex";
+            setBusy(true);
+
+            try {
+                const { grid, cols, rows, ratio } = activeGridData;
+                const mCanvas = document.createElement('canvas');
+                mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
+                const mCtx = mCanvas.getContext('2d');
+                mCtx.imageSmoothingEnabled = false;
+                const cellW = mCanvas.width / cols; const cellH = mCanvas.height / rows;
+                const yieldEvery = targetWidth >= 8000 ? 10 : 16;
+
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const tileIdx = grid[y][x];
+                        mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+                    }
+                    if (y % yieldEvery === 0) {
+                        dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                 }
+
+                dlStatus.innerText = "ENCODING PNG...";
+                const blob = await canvasToBlob(mCanvas, 'image/png');
+                if (!blob) {
+                    alert("Mastering failed. Try a lower resolution.");
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `Lumina_${targetWidth === 8000 ? '8K_Master' : '4K_Master'}.png`;
+                link.href = url;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (err) {
+                alert(targetWidth >= 8000 ? "Memory limit exceeded for 8K Master. Try 4K instead." : "Export failed. Try a lower grid density.");
+            } finally {
+                downloadLoader.style.display = "none";
+                setBusy(false);
             }
-            const link = document.createElement('a');
-            link.download = `Lumina_${targetWidth === 8000 ? '8K_Master' : '4K_Master'}.png`;
-            link.href = mCanvas.toDataURL('image/png');
-            link.click();
+        }
+
+        function canvasToBlob(canvas, type) {
+            return new Promise(resolve => canvas.toBlob(resolve, type));
         }
 
         document.getElementById('dl4K').onclick = () => exportMaster(4000);
