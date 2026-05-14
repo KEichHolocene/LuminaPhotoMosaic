@@ -1,7 +1,7 @@
 # Lumina Photomosaic Engine
 
 Lumina is a browser-based photomosaic tool. It builds mosaics locally from a target image and a user-supplied photo library, then exports high-resolution PNG masters without uploading source images.
-[![Demo](demoboard.png)]
+![Demo](demoboard.png)
 ## Current Scope
 
 - Static Vite web app in `index.html`, `style.css`, `app.js`, and `engine.js`.
