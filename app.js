@@ -49,11 +49,11 @@ photoImportBtn.onclick = (e) => {
 };
 folderImportBtn.onclick = (e) => {
     e.stopPropagation();
-    tileInput.click();
+    openFolderImport();
 };
 tileInputMobile.multiple = true;
 tileInputMobile.setAttribute('multiple', 'multiple');
-folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
+folderImportBtn.hidden = isIOS || (!('showDirectoryPicker' in window) && !('webkitdirectory' in tileInput));
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];
@@ -63,11 +63,39 @@ targetInput.onchange = async (e) => {
     autoTrigger();
 };
 
-tileInputMobile.onchange = (e) => handleTiles(e);
-tileInput.onchange = (e) => handleTiles(e);
+tileInputMobile.onchange = (e) => handleTileFiles(Array.from(e.target.files));
+tileInput.onchange = (e) => handleTileFiles(Array.from(e.target.files));
 
-async function handleTiles(e) {
-    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+async function openFolderImport() {
+    if ('showDirectoryPicker' in window) {
+        try {
+            const handle = await window.showDirectoryPicker();
+            const files = await collectImageFiles(handle);
+            await handleTileFiles(files);
+            return;
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+        }
+    }
+    tileInput.click();
+}
+
+async function collectImageFiles(directoryHandle) {
+    const files = [];
+    for await (const handle of directoryHandle.values()) {
+        if (handle.kind === 'file') {
+            const file = await handle.getFile();
+            if (isImageFile(file)) files.push(file);
+        } else if (handle.kind === 'directory') {
+            files.push(...await collectImageFiles(handle));
+        }
+    }
+    return files;
+}
+
+async function handleTileFiles(inputFiles) {
+    const files = inputFiles.filter(isImageFile);
+    if (files.length === 0) return;
     loader.style.display = "flex";
     
     const dCanvas = document.createElement('canvas'); dCanvas.width = 10; dCanvas.height = 10;
@@ -116,6 +144,10 @@ async function handleTiles(e) {
     loader.style.display = "none";
     autoTrigger();
 };
+
+function isImageFile(file) {
+    return file.type.startsWith('image/') || /\.(heic|heif|jpg|jpeg|png|gif|webp|bmp|avif)$/i.test(file.name);
+}
 
 gridRes.oninput = () => {
     const ratio = targetImg ? (targetImg.height/targetImg.width) : 1;

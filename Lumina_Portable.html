@@ -166,7 +166,7 @@
                     <button type="button" class="import-btn" id="photoImportBtn">Photos</button>
                     <button type="button" class="import-btn" id="folderImportBtn">Folder</button>
                 </div>
-                <input type="file" id="tileInput" webkitdirectory directory multiple="multiple" accept="image/*,.heic,.heif" hidden>
+                <input type="file" id="tileInput" webkitdirectory directory mozdirectory multiple="multiple" hidden>
                 <input type="file" id="tileInputMobile" multiple="multiple" accept="image/*,.heic,.heif" hidden>
             </div>
             <div id="libraryVault"></div>
@@ -302,12 +302,12 @@
         };
         folderImportBtn.onclick = (e) => {
             e.stopPropagation();
-            tileInput.click();
+            openFolderImport();
         };
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         tileInputMobile.multiple = true;
         tileInputMobile.setAttribute('multiple', 'multiple');
-        folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
+        folderImportBtn.hidden = isIOS || (!('showDirectoryPicker' in window) && !('webkitdirectory' in tileInput));
 
         async function handleTargetDrop(e) {
             e.preventDefault();
@@ -337,9 +337,37 @@
             autoTrigger();
         }
 
-        async function handleTiles(e) {
+        async function openFolderImport() {
+            if ('showDirectoryPicker' in window) {
+                try {
+                    const handle = await window.showDirectoryPicker();
+                    const files = await collectImageFiles(handle);
+                    await handleTileFiles(files);
+                    return;
+                } catch (err) {
+                    if (err?.name === 'AbortError') return;
+                }
+            }
+            tileInput.click();
+        }
+
+        async function collectImageFiles(directoryHandle) {
+            const files = [];
+            for await (const handle of directoryHandle.values()) {
+                if (handle.kind === 'file') {
+                    const file = await handle.getFile();
+                    if (isImageFile(file)) files.push(file);
+                } else if (handle.kind === 'directory') {
+                    files.push(...await collectImageFiles(handle));
+                }
+            }
+            return files;
+        }
+
+        async function handleTileFiles(inputFiles) {
             currentSessionId++; 
-            const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+            const files = inputFiles.filter(isImageFile);
+            if (files.length === 0) return;
             loader.style.display = "flex";
             const dCanvas = document.createElement('canvas'); dCanvas.width = 10; dCanvas.height = 10;
             const dCtx = dCanvas.getContext('2d');
@@ -381,8 +409,12 @@
             initWorker(); autoTrigger();
         }
 
-        tileInput.onchange = handleTiles;
-        tileInputMobile.onchange = handleTiles;
+        function isImageFile(file) {
+            return file.type.startsWith('image/') || /\.(heic|heif|jpg|jpeg|png|gif|webp|bmp|avif)$/i.test(file.name);
+        }
+
+        tileInput.onchange = (e) => handleTileFiles(Array.from(e.target.files));
+        tileInputMobile.onchange = (e) => handleTileFiles(Array.from(e.target.files));
 
         targetInput.onchange = async (e) => {
             const file = e.target.files[0]; targetImg = await loadImage(URL.createObjectURL(file));
