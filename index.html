@@ -52,8 +52,12 @@
 
         <section>
             <div class="section-label">Photos</div>
-            <div class="slot" id="tileSlot" style="padding: 15px; margin-bottom: 12px;">
+            <div class="slot" id="tileSlot">
                 <p id="vaultStatus" style="font-size: 0.7rem; font-weight: 600;">+ Import Collection</p>
+                <div class="import-actions">
+                    <button type="button" class="import-btn" id="photoImportBtn">Photos</button>
+                    <button type="button" class="import-btn" id="folderImportBtn">Folder</button>
+                </div>
                 <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
                 <input type="file" id="tileInputMobile" multiple accept="image/*" hidden>
             </div>

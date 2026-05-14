@@ -21,6 +21,8 @@ const tileInput = document.getElementById('tileInput');
 const tileInputMobile = document.getElementById('tileInputMobile');
 const targetSlot = document.getElementById('targetSlot');
 const tileSlot = document.getElementById('tileSlot');
+const photoImportBtn = document.getElementById('photoImportBtn');
+const folderImportBtn = document.getElementById('folderImportBtn');
 const targetName = document.getElementById('targetName');
 const previewPane = document.getElementById('previewPane');
 const dl4K = document.getElementById('dl4K');
@@ -39,7 +41,16 @@ function setBusy(isBusy) {
 }
 
 targetSlot.onclick = () => targetInput.click();
-tileSlot.onclick = () => isMobile ? tileInputMobile.click() : tileInput.click();
+tileSlot.onclick = () => tileInputMobile.click();
+photoImportBtn.onclick = (e) => {
+    e.stopPropagation();
+    tileInputMobile.click();
+};
+folderImportBtn.onclick = (e) => {
+    e.stopPropagation();
+    tileInput.click();
+};
+folderImportBtn.hidden = !('webkitdirectory' in tileInput);
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];

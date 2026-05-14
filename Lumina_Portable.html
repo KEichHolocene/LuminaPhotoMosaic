@@ -98,6 +98,14 @@
         .download-btn:not(:disabled):hover { background: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
         .download-btn:disabled { opacity: 0.3; cursor: default; }
         .download-btn.primary { background: var(--accent); border-color: var(--accent); }
+        .import-actions { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+        .import-btn {
+            background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);
+            border-radius: 999px; padding: 9px 14px; font-size: 0.68rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+        }
+        .import-btn:hover { border-color: var(--accent); background: rgba(255,255,255,0.1); }
+        .import-btn[hidden] { display: none; }
 
         .branding { display: flex; flex-direction: column; }
         .branding h1 { font-size: 0.85rem; font-weight: 900; letter-spacing: 1px; color: #fff; }
@@ -152,9 +160,14 @@
 
         <section>
             <div class="section-label">Photos</div>
-            <div class="slot" style="padding: 15px; margin-bottom: 12px;" onclick="document.getElementById('tileInput').click()">
+            <div class="slot" id="tileSlot" style="padding: 15px; margin-bottom: 12px;">
                 <p id="vaultStatus" style="font-size: 0.7rem; font-weight: 600;">+ Import Collection</p>
+                <div class="import-actions">
+                    <button type="button" class="import-btn" id="photoImportBtn">Photos</button>
+                    <button type="button" class="import-btn" id="folderImportBtn">Folder</button>
+                </div>
                 <input type="file" id="tileInput" webkitdirectory directory multiple hidden>
+                <input type="file" id="tileInputMobile" multiple accept="image/*" hidden>
             </div>
             <div id="libraryVault"></div>
         </section>
@@ -267,6 +280,11 @@
         const candidateLimit = 28;
 
         const gridRes = document.getElementById('gridRes');
+        const tileInput = document.getElementById('tileInput');
+        const tileInputMobile = document.getElementById('tileInputMobile');
+        const tileSlot = document.getElementById('tileSlot');
+        const photoImportBtn = document.getElementById('photoImportBtn');
+        const folderImportBtn = document.getElementById('folderImportBtn');
         const outputCanvas = document.getElementById('outputCanvas');
         const ctx = outputCanvas.getContext('2d');
         const loader = document.getElementById('novaLoader');
@@ -276,6 +294,17 @@
         function setBusy(isBusy) {
             document.body.classList.toggle('is-busy', isBusy);
         }
+
+        tileSlot.onclick = () => tileInputMobile.click();
+        photoImportBtn.onclick = (e) => {
+            e.stopPropagation();
+            tileInputMobile.click();
+        };
+        folderImportBtn.onclick = (e) => {
+            e.stopPropagation();
+            tileInput.click();
+        };
+        folderImportBtn.hidden = !('webkitdirectory' in tileInput);
 
         async function handleTargetDrop(e) {
             e.preventDefault();
@@ -305,7 +334,7 @@
             autoTrigger();
         }
 
-        tileInput.onchange = async (e) => {
+        async function handleTiles(e) {
             currentSessionId++; 
             const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
             loader.style.display = "flex";
@@ -347,7 +376,10 @@
             document.getElementById('vaultStatus').innerText = "+ Expand Archive";
             document.getElementById('tileCount').innerText = `${tiles.length} Units Pooled`;
             initWorker(); autoTrigger();
-        };
+        }
+
+        tileInput.onchange = handleTiles;
+        tileInputMobile.onchange = handleTiles;
 
         targetInput.onchange = async (e) => {
             const file = e.target.files[0]; targetImg = await loadImage(URL.createObjectURL(file));
