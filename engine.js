@@ -171,6 +171,19 @@ export function chooseTile(candidates, targetLab, contrast, x, y, rowIndices, pr
     return best;
 }
 
+export async function collectDirectoryFiles(directoryHandle) {
+    const files = [];
+    for await (const handle of directoryHandle.values()) {
+        if (handle.kind === 'file') {
+            const file = await handle.getFile();
+            if (isImageFile(file)) files.push(file);
+        } else if (handle.kind === 'directory') {
+            files.push(...await collectDirectoryFiles(handle));
+        }
+    }
+    return files;
+}
+
 export function isImageFile(file) {
     return file.type.startsWith('image/') || /\.(heic|heif|jpg|jpeg|png|gif|webp|bmp|avif|tif|tiff)$/i.test(file.name);
 }

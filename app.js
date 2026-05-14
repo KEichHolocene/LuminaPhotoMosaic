@@ -1,7 +1,8 @@
 import {
     ColorUtils, KDTree,
-    getDist, getTonePenalty, getLocalContrast, getRgbAt,
-    applyCellGlaze, seededNoise, chooseTile, isImageFile
+    getLocalContrast,
+    applyCellGlaze, chooseTile, isImageFile,
+    collectDirectoryFiles
 } from './engine.js';
 
 let tiles = [];
@@ -53,13 +54,23 @@ photoImportBtn.onclick = (e) => {
     e.stopPropagation();
     tileInputMobile.click();
 };
-folderImportBtn.onclick = (e) => {
+folderImportBtn.onclick = async (e) => {
     e.stopPropagation();
+    if ('showDirectoryPicker' in window) {
+        try {
+            const handle = await window.showDirectoryPicker();
+            const files = await collectDirectoryFiles(handle);
+            await handleTileFiles(files);
+            return;
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+        }
+    }
     tileInput.click();
 };
 tileInputMobile.multiple = true;
 tileInputMobile.setAttribute('multiple', 'multiple');
-folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
+folderImportBtn.hidden = isIOS || (!('showDirectoryPicker' in window) && !('webkitdirectory' in tileInput));
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];
@@ -79,44 +90,63 @@ async function handleTileFiles(inputFiles) {
 
     const dCanvas = document.createElement('canvas'); dCanvas.width = 10; dCanvas.height = 10;
     const dCtx = dCanvas.getContext('2d');
+    const tCanvas = document.createElement('canvas'); tCanvas.width = 64; tCanvas.height = 64;
+    const tCtx = tCanvas.getContext('2d');
     const getDHash = (data) => { let h = ""; for(let i=0;i<64;i++) h+=(data[i*4]>data[(i+1)*4])?"1":"0"; return h; };
+
+    // Batch size tuned for iOS memory limits
+    const batchSize = 8;
+    const pendingPreviews = [];
 
     for (let i = 0; i < files.length; i++) {
         try {
+            // Decode, center-crop to square, resize to 64x64
             const raw = await createImageBitmap(files[i]);
             const min = Math.min(raw.width, raw.height);
-            const bitmap = await createImageBitmap(raw, (raw.width-min)/2, (raw.height-min)/2, min, min, { resizeWidth: 64, resizeHeight: 64 });
+            const bitmap = await createImageBitmap(raw,
+                (raw.width - min) / 2, (raw.height - min) / 2, min, min,
+                { resizeWidth: 64, resizeHeight: 64 });
             raw.close();
 
+            // Hash via 10x10 downsample
+            dCtx.clearRect(0, 0, 10, 10);
             dCtx.drawImage(bitmap, 0, 0, 10, 10);
             const data = dCtx.getImageData(0,0,10,10).data;
             const hash = getDHash(data);
 
             if (!seenHashes.has(hash)) {
                 seenHashes.add(hash);
+                // Reuse scratch canvas, snapshot to ImageData for storage
+                tCtx.clearRect(0, 0, 64, 64);
+                tCtx.drawImage(bitmap, 0, 0, 64, 64);
+                const imgData = tCtx.getImageData(0, 0, 64, 64);
                 const tc = document.createElement('canvas'); tc.width = 64; tc.height = 64;
-                tc.getContext('2d').drawImage(bitmap, 0, 0);
+                tc.getContext('2d').putImageData(imgData, 0, 0);
+
                 tiles.push({
                     img: tc,
                     descriptor: [...ColorUtils.rgbToLab(...ColorUtils.avgColor(data)), 0,0,0,0],
                     index: tiles.length
                 });
 
+                // Defer preview thumbnails — collect and flush in batches
                 if (tiles.length <= libraryPreviewLimit) {
-                    const vItem = document.createElement('img');
-                    vItem.src = tc.toDataURL();
-                    vItem.className = "vault-item";
-                    libraryVault.appendChild(vItem);
+                    pendingPreviews.push(tc);
                 }
             }
             bitmap.close();
         } catch(err) {}
 
-        if (i % 20 === 0) {
+        if (i % batchSize === 0) {
             vaultStatus.innerText = `Indexing: ${Math.round((i/files.length)*100)}%`;
+            // Flush pending previews before yielding
+            await flushPreviews(pendingPreviews);
             await new Promise(r => setTimeout(r, 0));
         }
     }
+
+    // Flush any remaining previews
+    await flushPreviews(pendingPreviews);
 
     // Rebuild KD-tree with all tiles
     kdTree = new KDTree(tiles.map(t => ({ descriptor: t.descriptor, index: t.index })), 7);
@@ -125,7 +155,21 @@ async function handleTileFiles(inputFiles) {
     tileCount.innerText = `${tiles.length} Units Pooled`;
     loader.style.display = "none";
     autoTrigger();
-};
+}
+
+async function flushPreviews(pending) {
+    while (pending.length > 0) {
+        const tc = pending.shift();
+        const vItem = document.createElement('img');
+        vItem.className = "vault-item";
+        // Use toBlob (async) instead of toDataURL (sync + large string alloc)
+        const blob = await new Promise(r => tc.toBlob(r, 'image/png'));
+        if (blob) {
+            vItem.src = URL.createObjectURL(blob);
+            libraryVault.appendChild(vItem);
+        }
+    }
+}
 
 gridRes.oninput = () => {
     const ratio = targetImg ? (targetImg.height/targetImg.width) : 1;
