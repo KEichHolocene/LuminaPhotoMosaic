@@ -151,15 +151,20 @@ async function autoTrigger() {
     const targetData = sCtx.getImageData(0,0,cols,rows).data;
     
     const sessionGrid = [];
+    const sessionColors = [];
+    const sessionContrasts = [];
     const usageCounts = new Array(tiles.length).fill(0);
     let previousRow = null;
     
     for (let y = 0; y < rows; y++) {
         if (sessionId !== currentSessionId) return;
         const rowIndices = [];
+        const rowColors = [];
+        const rowContrasts = [];
         
         for (let x = 0; x < cols; x++) {
             const idx = (y * cols + x) * 4;
+            const targetRgb = [targetData[idx], targetData[idx+1], targetData[idx+2]];
             const targetLab = ColorUtils.rgbToLab(targetData[idx], targetData[idx+1], targetData[idx+2]);
             const contrast = getLocalContrast(targetData, x, y, cols, rows);
             const candidates = findCandidates(targetLab, contrast);
@@ -167,10 +172,15 @@ async function autoTrigger() {
 
             usageCounts[tileIdx]++;
             rowIndices.push(tileIdx);
+            rowColors.push(targetRgb);
+            rowContrasts.push(contrast);
             ctx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+            applyCellGlaze(ctx, x * cellW, y * cellH, cellW, cellH, targetRgb, contrast);
         }
         
         sessionGrid.push(rowIndices);
+        sessionColors.push(rowColors);
+        sessionContrasts.push(rowContrasts);
         previousRow = rowIndices;
         if (y % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
@@ -178,7 +188,7 @@ async function autoTrigger() {
     if (sessionId === currentSessionId) {
         loader.style.display = "none";
         setBusy(false);
-        activeGridData = { grid: sessionGrid, cols, rows, ratio };
+        activeGridData = { grid: sessionGrid, colors: sessionColors, contrasts: sessionContrasts, cols, rows, ratio };
         dl4K.disabled = false;
         dl8K.disabled = false;
         fitCanvas(); // Auto-fit the new mosaic
@@ -279,6 +289,22 @@ function getRgbAt(data, x, y, cols, rows) {
     return [data[idx], data[idx + 1], data[idx + 2]];
 }
 
+function applyCellGlaze(renderCtx, x, y, width, height, rgb, contrast) {
+    const flatness = Math.max(0, 1 - contrast / 24);
+    const luminance = (0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2]);
+    let alpha = 0.1 + flatness * 0.12;
+
+    if (luminance > 170 && luminance < 245) alpha += 0.04;
+    if (luminance > 245) alpha -= 0.04;
+    alpha = Math.min(0.26, Math.max(0.08, alpha));
+
+    renderCtx.save();
+    renderCtx.globalAlpha = alpha;
+    renderCtx.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    renderCtx.fillRect(x, y, width, height);
+    renderCtx.restore();
+}
+
 function seededNoise(x, y, salt) {
     const n = Math.sin((x * 127.1) + (y * 311.7) + (salt * 74.7)) * 43758.5453;
     return n - Math.floor(n);
@@ -348,7 +374,7 @@ async function exportMaster(targetWidth) {
     setBusy(true);
     
     try {
-        const { grid, cols, rows, ratio } = activeGridData;
+        const { grid, colors, contrasts, cols, rows, ratio } = activeGridData;
         const mCanvas = document.createElement('canvas');
         mCanvas.width = targetWidth; mCanvas.height = Math.round(targetWidth * ratio);
         const mCtx = mCanvas.getContext('2d');
@@ -362,6 +388,7 @@ async function exportMaster(targetWidth) {
             for (let x = 0; x < cols; x++) {
                 const tileIdx = grid[y][x];
                 mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
+                applyCellGlaze(mCtx, x * cellW, y * cellH, cellW, cellH, colors[y][x], contrasts[y][x]);
             }
             if (y % yieldEvery === 0) {
                 dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;
