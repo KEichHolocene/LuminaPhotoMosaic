@@ -48,6 +48,15 @@ function setBusy(isBusy) {
 }
 
 targetSlot.onclick = () => targetInput.click();
+tileSlot.onclick = () => tileInputMobile.click();
+photoImportBtn.onclick = (e) => {
+    e.stopPropagation();
+    tileInputMobile.click();
+};
+folderImportBtn.onclick = (e) => {
+    e.stopPropagation();
+    tileInput.click();
+};
 tileInputMobile.multiple = true;
 tileInputMobile.setAttribute('multiple', 'multiple');
 folderImportBtn.hidden = isIOS || !('webkitdirectory' in tileInput);
