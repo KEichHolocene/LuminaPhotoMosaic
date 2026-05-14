@@ -101,21 +101,30 @@ export function getLocalContrast(data, x, y, cols, rows) {
     return total / neighbors.length / 3;
 }
 
+// data is sampled at cols*2 x rows*2 resolution; x,y are cell coordinates
 export function getRgbAt(data, x, y, cols, rows) {
-    const cx = Math.min(cols - 1, Math.max(0, x));
-    const cy = Math.min(rows - 1, Math.max(0, y));
-    const idx = (cy * cols + cx) * 4;
+    const sx = Math.min((cols * 2) - 1, Math.max(0, x * 2));
+    const sy = Math.min((rows * 2) - 1, Math.max(0, y * 2));
+    const idx = (sy * cols * 2 + sx) * 4;
     return [data[idx], data[idx + 1], data[idx + 2]];
 }
 
-export function applyCellGlaze(renderCtx, x, y, width, height, rgb, contrast) {
+export function applyCellGlaze(renderCtx, x, y, width, height, rgb, contrast, tileRgb) {
     const flatness = Math.max(0, 1 - contrast / 24);
     const luminance = (0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2]);
     let alpha = 0.1 + flatness * 0.12;
 
     if (luminance > 170 && luminance < 245) alpha += 0.04;
     if (luminance > 245) alpha -= 0.04;
-    alpha = Math.min(0.26, Math.max(0.08, alpha));
+
+    // Boost glaze when tile is a poor luminance match (sparse library edge case)
+    if (tileRgb) {
+        const tileLum = (0.2126 * tileRgb[0]) + (0.7152 * tileRgb[1]) + (0.0722 * tileRgb[2]);
+        const lumGap = Math.abs(luminance - tileLum);
+        if (lumGap > 60) alpha += Math.min(0.18, (lumGap - 60) / 300);
+    }
+
+    alpha = Math.min(0.38, Math.max(0.08, alpha));
 
     renderCtx.globalAlpha = alpha;
     renderCtx.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;

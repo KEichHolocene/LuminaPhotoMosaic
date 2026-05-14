@@ -1,6 +1,6 @@
 import {
     ColorUtils, KDTree,
-    getLocalContrast,
+    getLocalContrast, getRgbAt,
     applyCellGlaze, chooseTile, isImageFile,
     collectDirectoryFiles
 } from './engine.js';
@@ -54,23 +54,36 @@ photoImportBtn.onclick = (e) => {
     e.stopPropagation();
     tileInputMobile.click();
 };
-folderImportBtn.onclick = async (e) => {
+folderImportBtn.onclick = (e) => {
     e.stopPropagation();
-    if ('showDirectoryPicker' in window) {
-        try {
-            const handle = await window.showDirectoryPicker();
+    openFolderImport();
+};
+
+function openFolderImport() {
+    if (window.showDirectoryPicker) {
+        window.showDirectoryPicker().then(async (handle) => {
             const files = await collectDirectoryFiles(handle);
             await handleTileFiles(files);
-            return;
-        } catch (err) {
-            if (err?.name === 'AbortError') return;
-        }
+        }).catch(err => {
+            if (err?.name !== 'AbortError') console.warn('showDirectoryPicker failed:', err);
+        });
+    } else {
+        const fi = document.createElement('input');
+        fi.type = 'file';
+        fi.setAttribute('webkitdirectory', '');
+        fi.setAttribute('directory', '');
+        fi.setAttribute('mozdirectory', '');
+        fi.multiple = true;
+        fi.style.display = 'none';
+        fi.onchange = () => { handleTileFiles(Array.from(fi.files)); fi.remove(); };
+        document.body.appendChild(fi);
+        fi.click();
     }
-    tileInput.click();
-};
+}
 tileInputMobile.multiple = true;
 tileInputMobile.setAttribute('multiple', 'multiple');
-folderImportBtn.hidden = isIOS || (!('showDirectoryPicker' in window) && !('webkitdirectory' in tileInput));
+// Folder picking only works on desktop browsers (showDirectoryPicker or webkitdirectory)
+folderImportBtn.hidden = isMobile || (!('showDirectoryPicker' in window) && !('webkitdirectory' in tileInput));
 
 targetInput.onchange = async (e) => {
     const file = e.target.files[0];
@@ -123,9 +136,11 @@ async function handleTileFiles(inputFiles) {
                 const tc = document.createElement('canvas'); tc.width = 64; tc.height = 64;
                 tc.getContext('2d').putImageData(imgData, 0, 0);
 
+                const avgRgb = ColorUtils.avgColor(data);
                 tiles.push({
                     img: tc,
-                    descriptor: [...ColorUtils.rgbToLab(...ColorUtils.avgColor(data)), 0,0,0,0],
+                    descriptor: [...ColorUtils.rgbToLab(...avgRgb), 0,0,0,0],
+                    avgRgb,
                     index: tiles.length
                 });
 
@@ -196,13 +211,13 @@ async function autoTrigger() {
     const cellW = outputCanvas.width / cols;
     const cellH = outputCanvas.height / rows;
 
-    // Sample Canvas
+    // Sample Canvas — 2x resolution for better contrast estimation
     const sCanvas = document.createElement('canvas');
-    sCanvas.width = cols;
-    sCanvas.height = rows;
+    sCanvas.width = cols * 2;
+    sCanvas.height = rows * 2;
     const sCtx = sCanvas.getContext('2d');
-    sCtx.drawImage(targetImg, 0, 0, cols, rows);
-    const targetData = sCtx.getImageData(0,0,cols,rows).data;
+    sCtx.drawImage(targetImg, 0, 0, sCanvas.width, sCanvas.height);
+    const targetData = sCtx.getImageData(0, 0, sCanvas.width, sCanvas.height).data;
 
     const sessionGrid = [];
     const sessionColors = [];
@@ -217,9 +232,8 @@ async function autoTrigger() {
         const rowContrasts = [];
 
         for (let x = 0; x < cols; x++) {
-            const idx = (y * cols + x) * 4;
-            const targetRgb = [targetData[idx], targetData[idx+1], targetData[idx+2]];
-            const targetLab = ColorUtils.rgbToLab(targetData[idx], targetData[idx+1], targetData[idx+2]);
+            const targetRgb = getRgbAt(targetData, x, y, cols, rows);
+            const targetLab = ColorUtils.rgbToLab(targetRgb[0], targetRgb[1], targetRgb[2]);
             const contrast = getLocalContrast(targetData, x, y, cols, rows);
             const candidates = kdTree.findNearest(targetLab, candidateLimit);
             const tileIdx = chooseTile(candidates, targetLab, contrast, x, y, rowIndices, previousRow, usageCounts, tiles);
@@ -229,7 +243,7 @@ async function autoTrigger() {
             rowColors.push(targetRgb);
             rowContrasts.push(contrast);
             ctx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
-            applyCellGlaze(ctx, x * cellW, y * cellH, cellW, cellH, targetRgb, contrast);
+            applyCellGlaze(ctx, x * cellW, y * cellH, cellW, cellH, targetRgb, contrast, tiles[tileIdx].avgRgb);
         }
 
         sessionGrid.push(rowIndices);
@@ -327,7 +341,7 @@ async function exportMaster(targetWidth) {
             for (let x = 0; x < cols; x++) {
                 const tileIdx = grid[y][x];
                 mCtx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
-                applyCellGlaze(mCtx, x * cellW, y * cellH, cellW, cellH, colors[y][x], contrasts[y][x]);
+                applyCellGlaze(mCtx, x * cellW, y * cellH, cellW, cellH, colors[y][x], contrasts[y][x], tiles[tileIdx].avgRgb);
             }
             if (y % yieldEvery === 0) {
                 dlStatus.innerText = `ASSEMBLING: ${Math.round((y/rows)*100)}%`;

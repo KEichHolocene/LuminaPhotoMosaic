@@ -92,7 +92,7 @@ body.is-busy #outputCanvas {
     pointer-events: none;
 }
 
-.nova-inner { position: relative; width: 40px; height: 40px; }
+.nova-inner { position: relative; width: 40px; height: 40px; display: grid; place-items: center; }
 .nova-ring { 
     position: absolute;
     inset: 0;
@@ -100,23 +100,22 @@ body.is-busy #outputCanvas {
     border-radius: 50%;
     animation: supernova 1.5s ease-out infinite;
     box-shadow: 0 0 10px var(--accent);
+    transform-origin: center center;
 }
 
 .star-core { 
-    position: absolute;
+    position: relative;
     width: 8px;
     height: 8px;
     background: #fff;
     border-radius: 50%; 
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
     animation: collapse 1.5s ease-in-out infinite;
     box-shadow: 0 0 15px #fff; 
+    transform-origin: center center;
 }
 
 @keyframes supernova { 0% { transform: scale(0.1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-@keyframes collapse { 0%, 100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 50% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; } }
+@keyframes collapse { 0%, 100% { transform: scale(1.2); opacity: 1; } 50% { transform: scale(0.5); opacity: 0.5; } }
 
 #content { 
     flex: 1;
@@ -154,7 +153,7 @@ body.is-busy #outputCanvas {
     overflow: hidden;
 }
 
-.slot:hover, .slot.drag-over { 
+.slot:hover {
     border-color: var(--accent);
     background: rgba(255,255,255,0.03);
     transform: translateY(-2px);
@@ -178,7 +177,7 @@ body.is-busy #outputCanvas {
     aspect-ratio: 1;
     border-radius: 12px;
     object-fit: cover;
-    cursor: grab;
+    cursor: default;
     transition: all 0.2s;
     touch-action: none;
 }
@@ -194,25 +193,6 @@ body.is-busy #outputCanvas {
     border-radius: var(--radius);
     padding: 25px;
     border: 1px solid var(--border);
-}
-
-#priorityPalette {
-    padding: 10px;
-    min-height: 100px;
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    align-items: center;
-}
-
-.palette-placeholder {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.2;
-    font-size: 0.7rem;
-    font-weight: 500;
 }
 
 #tileSlot {
@@ -258,6 +238,7 @@ body.is-busy #outputCanvas {
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     border: 0;
+    pointer-events: none;
 }
 
 input[type="range"] { 
