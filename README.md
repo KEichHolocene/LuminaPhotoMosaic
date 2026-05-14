@@ -5,7 +5,7 @@ A high-performance, browser-based photomosaic generation suite.
 ## Features
 - **Sovereign Engine**: All processing happens locally on your device.
 - **Mobile First**: Optimized for Android/iOS as a PWA.
-- **High Fidelity**: Supports 4K and 8K master exports.
+- **High Fidelity**: Supports 4K and 8K master (web version) exports.
 - **Perceptual Matching**: Uses CIELAB color space for superior accuracy.
 
 ## Mobile Installation (PWA)
