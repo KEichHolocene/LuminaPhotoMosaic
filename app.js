@@ -2,11 +2,11 @@ import { ColorUtils } from './engine.js';
 
 let tiles = [];
 let targetImg = null;
-let globallyUsed = new Set();
 let currentSessionId = 0;
 let debounceTimer = null;
 let activeGridData = null;
 const seenHashes = new Set();
+const candidateLimit = 28;
 
 const gridRes = document.getElementById('gridRes');
 const gridLabel = document.getElementById('gridLabel');
@@ -113,7 +113,6 @@ gridRes.oninput = () => {
 async function autoTrigger() {
     if (!targetImg || tiles.length === 0) return;
     const sessionId = ++currentSessionId;
-    globallyUsed.clear(); 
     loader.style.display = "flex";
     setBusy(true);
     
@@ -138,6 +137,8 @@ async function autoTrigger() {
     const targetData = sCtx.getImageData(0,0,cols,rows).data;
     
     const sessionGrid = [];
+    const usageCounts = new Array(tiles.length).fill(0);
+    let previousRow = null;
     
     for (let y = 0; y < rows; y++) {
         if (sessionId !== currentSessionId) return;
@@ -146,25 +147,17 @@ async function autoTrigger() {
         for (let x = 0; x < cols; x++) {
             const idx = (y * cols + x) * 4;
             const targetLab = ColorUtils.rgbToLab(targetData[idx], targetData[idx+1], targetData[idx+2]);
-            
-            // Simple Linear Search for now (KDTree could be added if needed)
-            let bestIdx = 0;
-            let bestDist = Infinity;
-            
-            // Optimization: Only check a subset or use full search
-            for (let i = 0; i < tiles.length; i++) {
-                const dist = getDist(targetLab, tiles[i].descriptor);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestIdx = i;
-                }
-            }
-            
-            rowIndices.push(bestIdx);
-            ctx.drawImage(tiles[bestIdx].img, x * cellW, y * cellH, cellW, cellH);
+            const contrast = getLocalContrast(targetData, x, y, cols, rows);
+            const candidates = findCandidates(targetLab, contrast);
+            const tileIdx = chooseTile(candidates, targetLab, contrast, x, y, rowIndices, previousRow, usageCounts);
+
+            usageCounts[tileIdx]++;
+            rowIndices.push(tileIdx);
+            ctx.drawImage(tiles[tileIdx].img, x * cellW, y * cellH, cellW, cellH);
         }
         
         sessionGrid.push(rowIndices);
+        previousRow = rowIndices;
         if (y % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
     
@@ -182,6 +175,99 @@ function getDist(a, b) {
     let sum = 0;
     for (let i = 0; i < 3; i++) { sum += Math.pow((a[i] - b[i]), 2); }
     return Math.sqrt(sum);
+}
+
+function findCandidates(targetLab, contrast) {
+    const candidates = [];
+    for (let i = 0; i < tiles.length; i++) {
+        const descriptor = tiles[i].descriptor;
+        const score = getDist(targetLab, descriptor) + getTonePenalty(targetLab, descriptor, contrast);
+        insertCandidate(candidates, { index: i, score }, candidateLimit);
+    }
+    return candidates;
+}
+
+function insertCandidate(candidates, candidate, limit) {
+    let pos = candidates.length;
+    while (pos > 0 && candidates[pos - 1].score > candidate.score) pos--;
+    if (pos >= limit) return;
+    candidates.splice(pos, 0, candidate);
+    if (candidates.length > limit) candidates.pop();
+}
+
+function chooseTile(candidates, targetLab, contrast, x, y, rowIndices, previousRow, usageCounts) {
+    const flatness = Math.max(0, 1 - contrast / 22);
+    const poolSize = Math.max(4, Math.round(6 + flatness * 18));
+    const maxUsage = Math.max(1, Math.ceil((x + y + 1) / Math.max(1, tiles.length)));
+    let best = candidates[0].index;
+    let bestScore = Infinity;
+
+    for (let i = 0; i < Math.min(poolSize, candidates.length); i++) {
+        const candidate = candidates[i];
+        const index = candidate.index;
+        const left = rowIndices[rowIndices.length - 1] === index;
+        const above = previousRow && previousRow[x] === index;
+        const diagonal = previousRow && (previousRow[x - 1] === index || previousRow[x + 1] === index);
+        const usage = usageCounts[index] || 0;
+        const repeatPenalty = Math.max(0, usage - maxUsage) * (10 + flatness * 18);
+        const adjacencyPenalty = (left ? 28 : 0) + (above ? 22 : 0) + (diagonal ? 8 : 0);
+        const organicJitter = seededNoise(x, y, index) * flatness * 16;
+        const detailPenalty = i * (1 - flatness) * 3;
+        const score = candidate.score + repeatPenalty + adjacencyPenalty + organicJitter + detailPenalty;
+
+        if (score < bestScore) {
+            bestScore = score;
+            best = index;
+        }
+    }
+
+    return best;
+}
+
+function getTonePenalty(targetLab, tileLab, contrast) {
+    const targetL = targetLab[0];
+    const tileL = tileLab[0];
+    const flatness = Math.max(0, 1 - contrast / 22);
+    let penalty = 0;
+
+    if (targetL > 58 && targetL < 93 && tileL > targetL + 7) {
+        penalty += Math.pow(tileL - targetL - 7, 1.35) * 1.9;
+    }
+    if (targetL > 66 && targetL < 96 && tileL > 94) {
+        penalty += (tileL - 93) * 5;
+    }
+    if (flatness > 0.55 && tileL > targetL + 12) {
+        penalty += flatness * Math.pow(tileL - targetL - 12, 1.2) * 1.2;
+    }
+
+    return penalty;
+}
+
+function getLocalContrast(data, x, y, cols, rows) {
+    const center = getRgbAt(data, x, y, cols, rows);
+    const neighbors = [
+        getRgbAt(data, x - 1, y, cols, rows),
+        getRgbAt(data, x + 1, y, cols, rows),
+        getRgbAt(data, x, y - 1, cols, rows),
+        getRgbAt(data, x, y + 1, cols, rows)
+    ];
+    let total = 0;
+    for (const n of neighbors) {
+        total += Math.abs(center[0] - n[0]) + Math.abs(center[1] - n[1]) + Math.abs(center[2] - n[2]);
+    }
+    return total / neighbors.length / 3;
+}
+
+function getRgbAt(data, x, y, cols, rows) {
+    const cx = Math.min(cols - 1, Math.max(0, x));
+    const cy = Math.min(rows - 1, Math.max(0, y));
+    const idx = (cy * cols + cx) * 4;
+    return [data[idx], data[idx + 1], data[idx + 2]];
+}
+
+function seededNoise(x, y, salt) {
+    const n = Math.sin((x * 127.1) + (y * 311.7) + (salt * 74.7)) * 43758.5453;
+    return n - Math.floor(n);
 }
 
 // Interaction & Zoom State
