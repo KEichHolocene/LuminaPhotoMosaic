@@ -109,10 +109,12 @@ npm run preview
 ## Future Directions
 Each mosaic is a fingerprint waiting to become a key.
 
-Local-only pipeline can be extended into a sovereign provenance system without changing the mosaic hot path. At import, each tile's raw file bytes could be hashed with SHA-256 (via WebCrypto, requires HTTPS or localhost) and combined into a Merkle root portable library fingerprint identifying a photo collection without revealing it. 
+Lumina's local pipeline sits adjacent to an active field: C2PA, ProofMode, Starling Lab, etc; lending itself to a variant of cryptographic provenance: rooting trust in the author's own photo library rather than a certificate authority.
 
-At generation, root should be concatenated with the target image's file hash and the canonical-rendered mosaic hash, then signed with an author keypair stored locally. A third-party with the signature and public key can verify authorship; a third party with additional access to the library and target can verify honest construction. 
+Hash each tile's file bytes at import and combine the results into a Merkle root, giving any private photo collection a compact 32-byte fingerprint. At export, bind that root to the target image's hash, the rendered mosaic's hash, and an author signature. Verifying authorship requires only the signature and public key. Verifying honest construction additionally requires access to the library and target.
 
-The cost lives at the boundaries (one hash per file at import, one signature at export), scaling with library size on disk I/O, not with mosaic resolution. Thought: key persistence and backup UX (IndexedDB + export flow), whether to anchor signatures to an external timestamp authority for non-repudiation, and tolerance for re-encoded source files breaking byte-exact library fingerprints.
+The cost is bounded and lives at the boundaries; one hash per file at import, one signature at export; and the mosaic generation itself stays untouched. The hard parts: key persistence and backup, optional anchoring to an external timestamp authority for non-repudiation, and how strictly to define the same library when re-encoded files break byte-exact matches.
+
+Not implemented yet. Sketched as a design direction, offered honestly to a conversation already in progress.
 
 The image can be copied. The making of it cannot.
