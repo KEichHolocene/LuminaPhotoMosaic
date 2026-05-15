@@ -114,3 +114,5 @@ Local-only pipeline can be extended into a sovereign provenance system without c
 At generation, root should be concatenated with the target image's file hash and the canonical-rendered mosaic hash, then signed with an author keypair stored locally. A third-party with the signature and public key can verify authorship; a third party with additional access to the library and target can verify honest construction. 
 
 The cost lives at the boundaries (one hash per file at import, one signature at export), scaling with library size on disk I/O, not with mosaic resolution. Thought: key persistence and backup UX (IndexedDB + export flow), whether to anchor signatures to an external timestamp authority for non-repudiation, and tolerance for re-encoded source files breaking byte-exact library fingerprints.
+
+The image can be copied. The making of it cannot.
