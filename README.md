@@ -109,3 +109,8 @@ npm run preview
 ## Future Directions
 Each mosaic is a fingerprint waiting to become a key.
 
+Local-only pipeline can be extended into a sovereign provenance system without changing the mosaic hot path. At import, each tile's raw file bytes could be hashed with SHA-256 (via WebCrypto, requires HTTPS or localhost) and combined into a Merkle root portable library fingerprint identifying a photo collection without revealing it. 
+
+At generation, root should be concatenated with the target image's file hash and the canonical-rendered mosaic hash, then signed with an author keypair stored locally. A third-party with the signature and public key can verify authorship; a third party with additional access to the library and target can verify honest construction. 
+
+The cost lives at the boundaries (one hash per file at import, one signature at export), scaling with library size on disk I/O, not with mosaic resolution. Thought: key persistence and backup UX (IndexedDB + export flow), whether to anchor signatures to an external timestamp authority for non-repudiation, and tolerance for re-encoded source files breaking byte-exact library fingerprints.
